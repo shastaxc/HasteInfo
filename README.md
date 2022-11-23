@@ -50,3 +50,4 @@ Haste potency assumptions:
   capture the aura buff that appears on them right after. If the Coloure Active buff and Indi buff appear on them
   within the same polling cycle, assume that's the one that was applied. By tracking all buffs on all players, you can
   ignore certain effects that may apply or fall off of the GEO to avoid race conditions.
+* Slow potency is assumed to be max of 300/1024 (~29.3%)
