@@ -18,7 +18,7 @@ haste calculations that I'm attempting to solve with HasteInfo:
   less DW only to realize that it coincidentally has gained 1% Haste back again.
   - TL;DR: GearInfo should not tell GearSwap about haste from gear or it creates a feedback loop
 * Subpar potency detection
-  - Potencies are often wrong. Even when manually setting BRD potency manually (override) to +8 on songs, double march is not being detected as capped magic haste.
+  - Potencies are often wrong. Even when manually setting BRD potency (override) to +8 on songs, double march is not being detected as capped magic haste.
 * Bloat
   - GearInfo calculates a lot of various stats, not just Haste. But GearSwap only cares about Haste.
 * Random error spam
