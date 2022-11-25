@@ -7,6 +7,8 @@ you do not need to wear any Dual Wield gear. In fact, wearing Dual Wield gear wh
 attack speed benefit from it (because you may already be attack speed capped) is actually bad for you
 because Dual Wield reduces the amount of TP per hit you get from auto attacks.
 
+## Purpose
+
 This library is meant to replace the GearInfo addon for the purposes of haste potency calculation and 
 the subsequent feeding of this info to GearSwap. There are several problems I've identified with GearInfo's
 haste calculations that I'm attempting to solve with HasteInfo:
@@ -25,24 +27,45 @@ haste calculations that I'm attempting to solve with HasteInfo:
   - Specifically, there seems to be some occasions where BRD songs can get GearInfo into a state where
   it just spams error messages, and cannot be fixed without a full addon reload.
 
-HasteInfo assumes that your equipment haste is always capped in order to avoid one of the points I made above.
+## Installation/Usage
+
+Include this at the top of your Globals file:
+```
+hasteinfo = include('HasteInfo')
+```
+
+It does not need to be put into each individual job lua, but you can do so if you wish.
+
+You can enable optional features using the following commands:
+| Feature | Enabling Command | Description |
+| ------- | ---------------- | ----------- |
+| Show UI | hasteinfo.show_ui() | Display the UI |
+
+## Details
+
+HasteInfo assumes that your equipment haste is always capped in order to avoid one of the shortfalls of GearInfo that I explained above.
 
 Sources of Haste accounted for:
 * GEO-Haste, Indi-Haste
 * Haste Samba
 * Embrava
 * Haste, Haste II spells
-* Hastega II (Garuda blood pact)
-* Honor March, Victory March
+* Hastega, Hastega II (Garuda blood pact)
+* Honor March, Victory March, Advancing March
+* Refueling, Erratic Flutter, Animating Wail, Mighty Guard
 * Hasso
 * DRG Spirit Link
+* Last Resort
+* Catastrophe aftermath with Apocalypse ilvl 119
+* Other weapon additional effect such as Blurred Knife
 
 Haste potency assumptions:
 * All GEOs have Idris (will add whitelist and blacklist feature later)
 * All BRDs have max bonus to Marches (will add whitelist and blacklist feature later)
-* Haste Samba is from sub DNC, unless there is a main DNC in your party
+* Haste Samba is from sub DNC, unless there is a main DNC in your party. Main DNC assumed to have 5/5 Haste Samba potency merits if it's not yourself.
 * SCH casting Embrava has 500 Enhancing Magic skill (capped Embrava potency)
-* Assumes DRG Spirit Link Haste is already on if reloading addon (no buff on master to tell for sure)
+* Assumes DRG Spirit Link Haste is already on if reloading addon (no buff on player to tell for sure)
+* Assumes no Haste Samba is active if reloading addon (no buff on player to tell for sure)
 * Is Haste aura from Entrusted Indi-Haste vs Indi-Haste/Geo-Haste?
   - First priority is listening to packets and detecting when an Indi-Haste is casted, then mark the target. If the
   target is the same as the caster, it's not entrusted. If Geo-Haste is casted, assume there's no 2nd Entrusted Indi-Haste.
@@ -50,4 +73,7 @@ Haste potency assumptions:
   capture the aura buff that appears on them right after. If the Coloure Active buff and Indi buff appear on them
   within the same polling cycle, assume that's the one that was applied. By tracking all buffs on all players, you can
   ignore certain effects that may apply or fall off of the GEO to avoid race conditions.
-* Slow potency is assumed to be max of 300/1024 (~29.3%)
+* Catastrophe comes from Apocalypse ilvl 119, making it JA haste. All lower ilvl of Apoc grant equipment haste instead, which is
+ignored by HasteInfo.
+* Slow potency is assumed to be max of 300/1024 (~29.3%). This will apply to both normal Slow debuff as well as aura Slow debuff.
+* Unknown sources of Haste will be assumed to be 150/1024 (~15%)
