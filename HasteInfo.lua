@@ -1,4 +1,4 @@
--- Version 2022.NOV.25.001
+-- Version 2022.NOV.26.001
 -- Copyright © 2022, Shasta
 -- All rights reserved.
 
@@ -119,7 +119,7 @@ hasteinfo.show_ui = false
 -- Initialization
 -------------------------------------------------------------------------------
 
-function hasteinfo.init_settings()
+function hasteinfo.init()
   -- Instatiated variables for storing values and states
   -- Stats includes total haste, and haste by category. 'Actual' is the real amount of
   -- haste, and 'uncapped' is the full amount that all buffs would add up to if there was
@@ -174,11 +174,23 @@ function hasteinfo.init_settings()
   }
 
   hasteinfo.players = T{-- Track jobs and relevant buffs of party members
-    -- [actor_id] = {main="GEO", sub="RDM", indi_owned=580, geo_owned=0, samba_start=6871687, haste_effects={}, buffs={}}
+    -- [123456] = {id=123456, name='Joe', main='GEO', main_lv=99, sub='RDM', sub_lv=99, indi_owned=580, geo_owned=0, samba_start=6871687, haste_effects={}, buffs={}}
   }
-end
 
-hasteinfo.init_settings()
+  -- Add initial party data
+  local party = windower.ffxi.get_party()
+	for i = 0, 5 do
+		local member = party['p'..i]
+    if member and member.name then
+      local actor_id
+      if member.mob and member.mob.id > 0 then
+        actor_id = member.mob.id
+      end
+      -- Create user if doesn't already exist
+      hasteinfo.get_member(actor_id, member.name)
+    end
+  end
+end
 
 
 -------------------------------------------------------------------------------
@@ -194,25 +206,101 @@ end
 -- Functions
 -------------------------------------------------------------------------------
 
+function hasteinfo.add_member(id, name)
+  if not id then
+    -- IDs must still remain unique. Iterate backwards from 0 until an unused index is found
+    for i=-1,-5,-1 do
+      if not hasteinfo.players[i] then
+        id = i
+        break
+      end
+    end
+    if not id then
+      print('HasteInfo: Something unexpected happened')
+    end
+  end
+  if not name then
+    name = ''
+  end
+  local init_buffs = {}
+  for i=1, 32 do
+    init_buffs[i] = 255
+  end
+  local new_member = {id=id, name=name, main='', sub='', indi_owned=0, geo_owned=0, haste_effects={}, buffs=init_buffs}
+  hasteinfo.players[id] = new_member
+  return hasteinfo.players[id]
+end
+
+function hasteinfo.get_member(id, name, dontCreate)
+  local foundMember = hasteinfo.players[id]
+  if foundMember then
+    if name and foundMember.name ~= name then
+      foundMember.name = name
+    end
+    return foundMember
+  else
+    local foundByName = hasteinfo.players:with('name', name)
+    if foundByName then -- try to match by name if no ID match
+      -- This situation may happen when resummoning trusts or if member was out of zone when first detected
+      -- If name matches, keep the higher ID
+      local found_id = foundByName.id
+      if id > found_id then
+        hasteinfo.players[id] = table.copy(foundByName)
+        hasteinfo.players[id].id = id
+        hasteinfo.players[found_id] = nil
+        return hasteinfo.players[id]
+      else
+        return foundByName
+      end
+    elseif not dontCreate then
+      return hasteinfo.add_member(id, name)
+    end
+  end
+end
+
+-- Packet should already be parsed
+function hasteinfo.update_job_from_packet(member, packet)
+	local main_job = packet['Main job']
+	local main_job_lv = packet['Main job level']
+	local sub_job =  packet['Sub job']
+	local sub_job_lv = packet['Sub job level']
+
+  if main_job and main_job ~= 'NON' then
+    member.main = res.jobs[main_job].ens
+    member.main_lv = main_job_lv or 0
+  end
+  if sub_job and sub_job ~= 'NON' then
+    member.sub = res.jobs[sub_job].ens
+    member.sub_lv = sub_job_lv or 0
+  end
+end
+
 function hasteinfo.parse_action(act, type)
-  windower.add_to_chat(001, type..' action:')
-  table.vprint(act)
+  -- windower.add_to_chat(001, type..' action:')
+  -- table.vprint(act)
 end
 
 function hasteinfo.parse_buffs(data)
-  for  k = 0, 4 do
+  for k = 0, 4 do
     local actor_id = data:unpack('I', k*48+5)
     
     if actor_id ~= 0 then
-      hasteinfo.players[actor_id] = {}
+      local member = hasteinfo.get_member(actor_id) or hasteinfo.add_member(actor_id)
+      member.buffs = {}
       for i = 1, 32 do
         local buff = data:byte(k*48+5+16+i-1) + 256*( math.floor( data:byte(k*48+5+8+ math.floor((i-1)/4)) / 4^((i-1)%4) )%4) -- Credit: Byrth, GearSwap
-        hasteinfo.players[actor_id][i] = buff
+        member.buffs[i] = buff
       end
     end
   end
-  windower.add_to_chat(001, 'Buffs:')
-  table.vprint(hasteinfo.players)
+  -- At this point we should have all party members with IDs in the table. If there were previous entries with placeholder IDs, dump them. They will never reconcile.
+  for member in hasteinfo.players:it() do
+    if member.id < 0 then
+      hasteinfo[member.id] = nil
+    end
+  end
+  -- windower.add_to_chat(001, 'Buffs:')
+  -- table.vprint(hasteinfo.players)
 end
 
 
@@ -227,7 +315,7 @@ windower.raw_register_event('outgoing chunk', function(id, data, modified, injec
     local newmain = data:byte(5)
     local newsub = data:byte(6)
 
-    hasteinfo.init_settings()
+    hasteinfo.init()
     -- Update DW stats
   end
 end)
@@ -235,6 +323,31 @@ end)
 windower.raw_register_event('incoming chunk', function(id, data, modified, injected, blocked)
   if id == 0x076 then -- Party buffs update; does not include buffs on self
     hasteinfo.parse_buffs(data)
+  elseif id == 0xDF then -- char update
+    local packet = packets.parse('incoming', data)
+    if packet then
+      local playerId = packet['ID']
+      if playerId and playerId > 0 then
+        -- print('PACKET: Char update for player ID: '..playerId)
+        local member = hasteinfo.get_member(playerId, nil)
+        hasteinfo.update_job_from_packet(member, packet)
+      else
+        print('Char update: ID not found.')
+      end
+    end
+  elseif id == 0xDD then -- party member update
+    local packet = packets.parse('incoming', data)
+    if packet then
+      local name = packet['Name']
+      local playerId = packet['ID']
+      if name and playerId and playerId > 0 then
+        -- print('PACKET: Party member update for '..name)
+        local member = hasteinfo.get_member(playerId, name)
+        hasteinfo.update_job_from_packet(member, packet)
+      else
+        print('Party update: name and/or ID not found.')
+      end
+    end
   end
 end)
 
@@ -262,5 +375,7 @@ end)
 windower.raw_register_event('zone change', function(new_zone, old_zone)
   -- Update buffs after zoning
 end)
+
+hasteinfo.init()
 
 return hasteinfo
