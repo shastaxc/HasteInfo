@@ -41,7 +41,16 @@ You can enable optional features using the following commands:
 | ------- | ---------------- | ----------- |
 | Show UI | hasteinfo.show_ui() | Display the UI |
 
-## Details
+## How It Works
+
+HasteInfo will track actions taken on you or your party members that are related to haste (list of these actions can be found below). It also tracks buffs on you and your party members. When an action is taken, it will check the buff list on the player receiving the effect and map the buffs to the casting action. Due to the timing of when buffs show up (after the cast), there is a period of time when the action that was taken has no corresponding buff to map to. For this reason, HasteInfo also checks in the reverse direction. When there is an incoming buff, it checks the actions that were previously taken on that player in order to map that buff to an action. In this way, HasteInfo can determine the potency of a Haste buff (id 33) even though several actions could grant that buff to a player. The buff ID itself does not vary even though the potency might.
+
+Edge cases:
+* If an action is taken on a player who already has the corresponding buff, the result may be either "no effect" or overriding the current buff. If overriding the current buff, it could be either the same or stronger potency so this has to be updated. There is no incoming party buff packet (id 0x076) when this happens because the buff icons do not change. Unknown yet if there is an "buff gained" event triggered when this happens to the primary user.
+* GEO spells can have an effect on the primary user even though no action was performed on them. Indi- spells are tracked by pegging them to the player who "owns" them (who it's on) as well as who casted them (since the caster affects potency too). Geo- spells are pegged to the caster since they cannot ever be "owned" by another player, whereas Indi- spells can be Entrusted to other players. When a GEO buff appears on a player, all party members are checked to find the owner in order to determined its potency based on the original casting action.
+* Sambas are not detected as buffs, but can be detected based on the spike animation when you perform a melee attack. It is then tracked in a special attribute called samba_start which tracks the most recent timestamp of your melee attack that gained you the buff. It remains tracked until something checks your haste values. At that point, it is determined if the buff is expired or not. Alternatively, disengaging from a mob will also clear the tracked samba effect.
+
+### Sources of Haste
 
 HasteInfo assumes that your equipment haste is always capped in order to avoid one of the shortfalls of GearInfo that I explained above.
 
@@ -58,6 +67,8 @@ Sources of Haste accounted for:
 * Last Resort
 * Catastrophe aftermath with Apocalypse ilvl 119
 * Other weapon additional effect such as Blurred Knife
+
+### Assumptions
 
 Haste potency assumptions:
 * All GEOs have Idris (will add whitelist and blacklist feature later)
@@ -77,3 +88,4 @@ Haste potency assumptions:
 ignored by HasteInfo.
 * Slow potency is assumed to be max of 300/1024 (~29.3%). This will apply to both normal Slow debuff as well as aura Slow debuff.
 * Unknown sources of Haste will be assumed to be 150/1024 (~15%)
+* Anonymous jobs must be deduced by the spells and abilities used. Only DNC really needs to be tracked.
