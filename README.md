@@ -89,3 +89,19 @@ ignored by HasteInfo.
 * Slow potency is assumed to be max of 300/1024 (~29.3%). This will apply to both normal Slow debuff as well as aura Slow debuff.
 * Unknown sources of Haste will be assumed to be 150/1024 (~15%)
 * Anonymous jobs must be deduced by the spells and abilities used. Only DNC really needs to be tracked.
+
+## TODO
+* Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
+* Enhance initialization
+  - Detect buffs on self and apply some logic to deduce haste effects (can use windower.ffxi.get_player().buffs to start)
+  - Determine DW traits
+* On changing jobs, write player data to file, to retrieve after library reloads. Cannot prevent gearswap from reloading the whole addon when changing jobs. That's a built-in, unavoidable feature of gearswap.
+* Test if additional effect: haste weapons triggers an animation on melee hit when it procs.
+* Remaining actions to account for haste effects:
+  - Additional Effect: Haste weapons
+  - Bard Songs
+  - Catastrophe Aftermath
+  - Pet actions
+* Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
+* Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
+* Account for Marcato, Soul Voice potency
