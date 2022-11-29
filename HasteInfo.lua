@@ -1,4 +1,4 @@
--- Version 2022.NOV.28.001
+-- Version 2022.NOV.29.001
 -- Copyright © 2022, Shasta
 -- All rights reserved.
 
@@ -98,9 +98,16 @@ hasteinfo.haste_triggers = T{
     [  1] = {triggering_action='Additional Effect Melee', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Melee', trigger_sub_category='', persists_thru_zoning=false, potency_base=150},
   },
   ['Other'] = {
-    [  0] = {triggering_action='Unknown', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Unknown', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=150},
+    [  0] = {triggering_action='Unknown', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Unknown', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=150, potency=150},
   }
 }
+
+hasteinfo.song_assumption_priority = L{
+  hasteinfo.haste_triggers['Magic'][417],
+  hasteinfo.haste_triggers['Magic'][420],
+  hasteinfo.haste_triggers['Magic'][419],
+}
+
 hasteinfo.trusts = L{
 	-- tanks
 	{ name = 'Amchuchu', job = 'RUN', subJob = 'WAR' },
@@ -240,10 +247,31 @@ hasteinfo.trusts = L{
 -- Merit ID is 1538
 hasteinfo.samba_stats = {potency_base=51, potency_per_merit=10, merit_id=1538, merit_name='haste_samba_effect', animation_id=23}
 
--- buff ID 612 = Colure Active; shows up right before the new geo buff shows up
--- buff ID 684 = Entrust; JA action 386
-hasteinfo.haste_buff_ids = S{33, 64, 214, 228, 273, 353, 580, 604}
-hasteinfo.slow_debuff_ids = S{13, 194, 565}
+hasteinfo.SONG_HASTE_BUFF_ID = 214
+hasteinfo.GEO_HASTE_BUFF_ID = 580
+hasteinfo.HASTE_BUFF_IDS = S{33, 64, 214, 228, 273, 353, 580, 604}
+
+hasteinfo.SLOW_SPELL_DEBUFF_ID = 13
+hasteinfo.SLOW_SONG_DEBUFF_ID = 194
+hasteinfo.SLOW_DEBUFF_IDS = S{13, 194}
+
+hasteinfo.SOUL_VOICE_BUFF_ID = 52
+hasteinfo.MARCATO_BUFF_ID = 231
+hasteinfo.BOLSTER_BUFF_ID = 513
+hasteinfo.ECLIPTIC_ATTRITION_BUFF_ID = 516
+hasteinfo.BOG_BUFF_ID = 569
+hasteinfo.COLURE_ACTIVE_ID = 612
+hasteinfo.ENTRUST_BUFF_ID = 684
+hasteinfo.OTHER_RELEVANT_BUFFS = S{52, 231, 513, 516, 569, 612, 684}
+
+hasteinfo.SOUL_VOICE_ACTION_ID = 25
+hasteinfo.MARCATO_ACTION_ID = 284
+hasteinfo.BOLSTER_ACTION_ID = 343
+hasteinfo.ECLIPTIC_ATTRITION_ACTION_ID = 347
+hasteinfo.BOG_ACTION_ID = 350
+hasteinfo.ENTRUST_ACTION_ID = 386
+hasteinfo.OTHER_RELEVANT_ACTIONS = S{25, 284, 343, 347, 350, 386}
+
 hasteinfo.SAMBA_DURATION = 9 -- Assume samba lasts 9 seconds on players after hitting a mob inflicted with Samba Daze
 hasteinfo.ACTION_TYPE = T{
   ['SELF_MELEE'] = 'Self Melee',
@@ -327,21 +355,25 @@ function hasteinfo.init()
 
   hasteinfo.players = T{ -- Track jobs and relevant buffs of party members
     --[[
-    [id] = {id=num, name=str, main=str, main_lv=num, sub=str, sub_lv=num, songs=list, samba=table, haste_effects=table, buffs=set}
-    songs = L{
-      {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, expiration=num}
+    [id] = {id=num, name=str, main=str, main_lv=num, sub=str, sub_lv=num, samba=table, songs=table, haste_effects=table, buffs=table}
+    songs = T{
+      [triggering_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, received_at=num, expiration=num}
     }
     samba = {
       expiration=num, -- seconds since last samba effect detected; has decimals that can track to 1/100 of a second
       potency=num,
     }
-    haste_effects = {
+    haste_effects = T{
       [buff_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma|ja, potency=num}
     }
-    buffs = {num, num, num, num}
+    buffs = {
+      [1]=num
+      ...
+      [32]=num
+    }
 
     Ex:
-    [123456] = {id=123456, name='Joe', main='GEO', main_lv=99, sub='RDM', sub_lv=99, samba={expiration=12345, potency=51}, haste_effects=T{}, buffs=S{}}
+    [123456] = {id=123456, name='Joe', main='GEO', main_lv=99, sub='RDM', sub_lv=99, samba={expiration=12345, potency=51}, songs={}, haste_effects={}, buffs={}}
     ]]
   }
   
@@ -405,7 +437,7 @@ function hasteinfo.add_member(id, name)
   if not name then
     name = ''
   end
-  local new_member = {id=id, name=name, main='', main_lv=0, sub='', sub_lv=0, samba={}, haste_effects=T{}, buffs=S{}}
+  local new_member = {id=id, name=name, main='', main_lv=0, sub='', sub_lv=0, samba={}, songs=T{}, haste_effects=T{}, buffs=L{}}
   hasteinfo.players[id] = new_member
   return hasteinfo.players[id]
 end
@@ -455,8 +487,6 @@ function hasteinfo.update_job_from_packet(member, packet)
 end
 
 function hasteinfo.parse_action(act, type)
-  -- windower.add_to_chat(001, type..' action:')
-  -- table.vprint(act)
   local me = hasteinfo.get_member(player.id, player.name)
 
   if type == hasteinfo.ACTION_TYPE.SELF_MELEE then
@@ -482,39 +512,36 @@ function hasteinfo.parse_action(act, type)
   elseif type == hasteinfo.ACTION_TYPE.BARD_SONG then
     if not hasteinfo.haste_triggers['Magic'][act.param] then return end
     local haste_effect = table.copy(hasteinfo.haste_triggers['Magic'][act.param])
-    
+
+    -- Record this action. The next player update packet will tell us what the effect really was.
     local caster = hasteinfo.get_member(act.actor_id)
 
     for i,target in ipairs(act.targets) do
       local target_member = hasteinfo.get_member(target.id)
-      for i,a in ipairs(target.actions) do
-        local buff_id = a.param
-        -- If buff doesn't match a buff that we're interested in, ignore
-        if hasteinfo.haste_buff_ids:contains(buff_id) or hasteinfo.slow_debuff_ids:contains(buff_id) then
-          -- Determine potency
-          haste_effect.potency = haste_effect.potency_base
 
-          -- Add song gear bonuses
-          local song_bonus = 0
-          if caster then -- caster is in party
-            -- Check for trusts
-            if hasteinfo.trusts:with('name', caster.name) then
-              song_bonus = 0
-            else -- not a trust
-              if caster.main == 'BRD' then
-                song_bonus = haste_effect.song_cap
-              else -- subjob brd
-                song_bonus = 0
-              end
-            end
-          else -- caster is not in your party, must make assumptions about song potency
+      -- Determine potency
+      haste_effect.potency = haste_effect.potency_base
+
+      -- Add song gear bonuses
+      local song_bonus = 0
+      if caster then -- caster is in party
+        -- Check for trusts
+        if hasteinfo.trusts:with('name', caster.name) then
+          song_bonus = 0
+        else -- not a trust
+          if caster.main == 'BRD' then
             song_bonus = haste_effect.song_cap
+          else -- subjob brd
+            song_bonus = 0
           end
-          haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_song_point * song_bonus)
-            
-          hasteinfo.add_haste_effect(target_member, haste_effect)
         end
+      else -- caster is currently defined, must make assumptions about song potency
+        song_bonus = haste_effect.song_cap
       end
+
+      haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_song_point * song_bonus)
+      haste_effect.received_at = hasteinfo.now()
+      target_member.songs[act.param] = haste_effect
     end
   elseif type == hasteinfo.ACTION_TYPE.GEOMANCY then
     if not hasteinfo.haste_triggers['Magic'][act.param] then return end
@@ -524,36 +551,30 @@ function hasteinfo.parse_action(act, type)
 
     for i,target in ipairs(act.targets) do
       local target_member = hasteinfo.get_member(target.id)
-      for i,a in ipairs(target.actions) do
-        local buff_id = a.param
-        -- If buff doesn't match a buff that we're interested in, ignore
-        -- Have to allow 0 value because for some reason geomancy spells come in as buff_id 0 on the action packet
-        if buff_id == 0 or hasteinfo.haste_buff_ids:contains(buff_id) or hasteinfo.slow_debuff_ids:contains(buff_id) then
-          -- Determine potency
-          haste_effect.potency = haste_effect.potency_base
 
-          -- Add geomancy gear bonus
-          local geomancy = 0
-          -- Check for trusts
-          if hasteinfo.trusts:with('name', caster.name) then
-            geomancy = 0
-          else -- not a trust
-            geomancy = 10 -- assume idris; TODO: Enhance this with a whitelist/blacklist
-          end
-          haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_geomancy * geomancy)
-          -- Also, add to the indi- or geo- table
-          if haste_effect.triggering_action:startswith('Indi-') then
-            haste_effect.caster_id = caster.id
-            haste_effect.target_id = target_member.id
-            hasteinfo.indi_active[target_member.id] = haste_effect
-          elseif haste_effect.triggering_action:startswith('Geo-') then
-            haste_effect.caster_id = caster.id
-            hasteinfo.geo_active[caster.id] = haste_effect
-          end
+      -- Determine potency
+      haste_effect.potency = haste_effect.potency_base
 
-          hasteinfo.add_haste_effect(target_member, haste_effect)
-        end
+      -- Add geomancy gear bonus
+      local geomancy = 0
+      -- Check for trusts
+      if hasteinfo.trusts:with('name', caster.name) then
+        geomancy = 0
+      else -- not a trust
+        geomancy = 10 -- assume idris; TODO: Enhance this with a whitelist/blacklist
       end
+      haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_geomancy * geomancy)
+      -- Also, add to the indi- or geo- table
+      if haste_effect.triggering_action:startswith('Indi-') then
+        haste_effect.caster_id = caster.id
+        haste_effect.target_id = target_member.id
+        hasteinfo.indi_active[target_member.id] = haste_effect
+      elseif haste_effect.triggering_action:startswith('Geo-') then
+        haste_effect.caster_id = caster.id
+        hasteinfo.geo_active[caster.id] = haste_effect
+      end
+
+      hasteinfo.add_haste_effect(target_member, haste_effect)
     end
   elseif type == hasteinfo.ACTION_TYPE.SPELL then
     if not hasteinfo.haste_triggers['Magic'][act.param] then return end
@@ -565,9 +586,8 @@ function hasteinfo.parse_action(act, type)
       local target_member = hasteinfo.get_member(target.id)
       for i,a in ipairs(target.actions) do
         local buff_id = a.param
-        -- If buff doesn't match a buff that we're interested in, ignore
-        -- Have to allow 0 value because for some reason geomancy spells come in as buff_id 0 on the action packet
-        if hasteinfo.haste_buff_ids:contains(buff_id) or hasteinfo.slow_debuff_ids:contains(buff_id) then
+        -- If buff doesn't match a buff that we're interested in, ignore ('no effect' spells have buff_id == 0)
+        if hasteinfo.HASTE_BUFF_IDS:contains(buff_id) or hasteinfo.SLOW_DEBUFF_IDS:contains(buff_id) then
           -- Determine potency
           haste_effect.potency = haste_effect.potency_base
           hasteinfo.add_haste_effect(target_member, haste_effect)
@@ -588,22 +608,49 @@ function hasteinfo.parse_buffs(data)
     
     if actor_id ~= 0 then
       local member = hasteinfo.get_member(actor_id) or hasteinfo.add_member(actor_id)
-      local old_buffs = member.buffs:copy()
-      member.buffs = S{}
+      new_buffs = L{}
       for i = 1, 32 do
         local buff_id = data:byte(k*48+5+16+i-1) + 256*( math.floor( data:byte(k*48+5+8+ math.floor((i-1)/4)) / 4^((i-1)%4) )%4) -- Credit: Byrth, GearSwap
-        if buff_id ~= 255 then
-          hasteinfo.add_buff(member, buff_id)
-        end
+
+        new_buffs:append({id=buff_id})
       end
-      -- Find lost buffs and remove corresponding haste effect
-      hasteinfo.resolve_lost_buffs(member, old_buffs)
+      
+      hasteinfo.reconcile_buff_update(member, new_buffs)
     end
   end
-  -- At this point we should have all party members with IDs in the table. If there were previous entries with placeholder IDs, dump them. They will never reconcile.
+
+  -- Thanks to this packet update, we should have all party members with IDs in the table.
+  -- If there were previous entries with placeholder IDs, dump them. They will never reconcile.
   for member in hasteinfo.players:it() do
     if member.id < 0 then
       hasteinfo[member.id] = nil
+    end
+  end
+end
+
+-- Don't need to add indi effects in this way, but remove expired ones
+function hasteinfo.check_indi_buffs(member, old_buffs)
+  -- Check if there is a Colure Active buff in new buff list or old buff list but not both
+  local colure_status = {was_active=false, is_active=false}
+  
+  for i,buff_id in ipairs(old_buffs) do
+    if buff_id == hasteinfo.COLURE_ACTIVE_ID then
+      colure_status.was_active = true
+    end
+  end
+  for i,buff_id in ipairs(member.buffs) do
+    if buff_id == hasteinfo.COLURE_ACTIVE_ID then
+      colure_status.is_active = true
+      break
+    end
+  end
+  -- Check if buff expired
+  if colure_status.was_active and not colure_status.is_active then
+    -- Get effect from indi- table
+    local indi = hasteinfo.indi_active[member.id]
+    if indi then
+      -- Remove effect from indi- table
+      hasteinfo.indi_active[member.id] = nil
     end
   end
 end
@@ -612,91 +659,13 @@ function hasteinfo.is_samba_expired(member)
   local is_expired = false
 
   if member.samba and member.samba.expiration then
-    is_expired = member.samba.expiration >= os.clock()
+    is_expired = member.samba.expiration >= hasteinfo.now()
     if is_expired then
       member.samba = {}
     end
   end
   
   return is_expired
-end
-
-function hasteinfo.add_buff(member, buff_id)
-  if not member or not buff_id or buff_id == 255 then return end
-
-  -- Check if buff is currently being tracked. If not, add it and check for corresponding action to link it to
-  if member.buffs and not member.buffs:contains(buff_id) then
-    member.buffs:add(buff_id)
-    -- Check if it's a haste-related buff
-    local is_haste_buff = hasteinfo.haste_buff_ids:contains(buff_id) or hasteinfo.slow_debuff_ids:contains(buff_id)
-    -- Add corresponding haste effect if possible
-    if is_haste_buff and not member.haste_effects[buff_id] then
-      local new_haste_effect
-      -- TODO: Remove after finished debugging. Just curious how often this happens.
-      print('Received haste buff '..buff_id..' while missing corresponding "haste_effect".')
-      -- If we can't find a corresponding haste effect, check geo lists; that's the only haste effect that can
-      -- applied without any action having been taken on you.
-      local found_indi = hasteinfo.indi_active:with('buff_id', buff_id)
-      if found_indi then
-        new_haste_effect = found_indi
-      else
-        local found_geo = hasteinfo.geo_active:with('buff_id', buff_id)
-        if found_geo then
-          new_haste_effect = found_geo
-        end
-      end
-
-      if not new_haste_effect then
-        -- If still no match, this is an unknown haste. You must have had an action taken on you but lost the packet.
-        new_haste_effect = hasteinfo.haste_triggers['Other'][0]
-      end
-
-      if new_haste_effect then
-        member.haste_effects[buff_id] = new_haste_effect
-      else
-        -- This should never happen
-        print('Something went wrong in detecting "haste_effect" for buff '..buff_id..'.')
-      end
-    end
-  end
-end
-
-function hasteinfo.remove_buff(member, buff_id, remove_all)
-  if not member or buff_id == 255 then return end
-
-  -- If this is an indi- spell, check if this member was the owner in the indi_active table
-  if hasteinfo.indi_active[member.id] and hasteinfo.indi_active[member.id].buff_id == buff_id then
-    -- Might need to also make sure this member does not have the Colure Active buff, but at this point
-    -- I'm gonna assume that's an unnecessary redundancy
-    hasteinfo.indi_active[member.id] = nil
-  end
-
-  if member.buffs then
-    if remove_all then
-      member.buffs = S{}
-      member.haste_effects = T{}
-    else
-      member.buffs:remove(buff_id)
-
-      -- Remove corresponding haste effect
-      member.haste_effects[buff_id] = nil
-    end
-  end
-end
-
--- Find lost buffs and remove corresponding haste effect
-function hasteinfo.resolve_lost_buffs(member, old_buffs)
-  local lost_buffs = S{}
-  for buff_id in old_buffs:it() do
-    if not member.buffs:contains(buff_id) then
-      lost_buffs:add(buff_id)
-    end
-  end
-
-  -- Remove haste effects that correspond to the lost buffs
-  for buff_id in lost_buffs:it() do
-    member.haste_effects[buff_id] = nil
-  end
 end
 
 function hasteinfo.add_haste_effect(member, haste_effect)
@@ -710,7 +679,6 @@ function hasteinfo.add_haste_effect(member, haste_effect)
     -- Even if buff_id is already present, this could be a different action that provides the same buff_id but
     -- potentially different potency, so track this newer haste_effect instead.
     member.haste_effects[haste_effect.buff_id] = haste_effect
-    hasteinfo.add_buff(member, haste_effect.buff_id)
   end
 end
 
@@ -720,6 +688,15 @@ function hasteinfo.remove_zoned_effects(member)
     if not effect.persists_thru_zoning then
       member.haste_effects[effect.buff_id] = nil
     end
+  end
+  
+  -- If player had an Indi spell on them, stop tracking it
+  if hasteinfo.indi_active[member.id] then
+    hasteinfo.indi_active[member.id] = nil
+  end
+  -- If player had casted a Geo spell, stop tracking it
+  if hasteinfo.geo_active[member.id] then
+    hasteinfo.geo_active[member.id] = nil
   end
 end
 
@@ -748,9 +725,67 @@ function hasteinfo.update_samba(member, is_samba_active)
   end
 
   member.samba = {
-    ['expiration'] = os.clock() + hasteinfo.SAMBA_DURATION,
+    ['expiration'] = hasteinfo.now() + hasteinfo.SAMBA_DURATION,
     ['potency'] = potency,
   }
+end
+
+function hasteinfo.deduce_haste_effects(member)
+  for buff in member.buffs:it() do
+    if hasteinfo.HASTE_BUFF_IDS:contains(buff.id) then
+      -- See if there is a corresponding haste effect on player already
+      local haste_effect = member.haste_effects[buff.id]
+      if not haste_effect then
+        -- Depending on the buff, we can possibly deduce its source
+        if buff.id == 228 then -- Embrava
+          haste_effect = table.copy(hasteinfo.haste_triggers['Magic'][478])
+        elseif buff.id == 604 then -- Mighty Guard
+          haste_effect = table.copy(hasteinfo.haste_triggers['Magic'][750])
+        elseif buff.id == 353 then -- Hasso
+          haste_effect = table.copy(hasteinfo.haste_triggers['Job Ability'][173])
+        elseif buff.id == 64 then -- Last Resort
+          haste_effect = table.copy(hasteinfo.haste_triggers['Job Ability'][51])
+        elseif buff.id == 273 then -- Relic aftermath
+          -- TODO: Check if current weapon is one that grants haste effect
+        elseif buff.id == 214 then -- March
+          -- TODO
+        elseif buff.id == 580 then -- Geomancy
+          -- Get haste effect from indi- and geo- tables
+          local found_indi = hasteinfo.indi_active:with('buff_id', buff.id)
+          if found_indi then
+            haste_effect = found_indi
+          else
+            local found_geo = hasteinfo.geo_active:with('buff_id', buff.id)
+            if found_geo then
+              haste_effect = found_geo
+            end
+          end
+      
+          if not haste_effect then
+            -- Unknown source, but we know it's geomancy. Guess at potency
+            haste_effect = table.copy(hasteinfo.haste_triggers[771])
+            haste_effect.potency = haste_effect.potency_base + (haste_effect.potency_per_geomancy * 10)
+          end
+        else
+          -- Unknown source, guess at potency
+          haste_effect = table.copy(hasteinfo.haste_triggers['Other'][0])
+        end
+
+        if not haste_effect.potency then
+          -- Enhance potency based on merits
+          if haste_effect.potency_per_merit and haste_effect.merit_name then
+            -- If we're dealing with primary player, we can pull merit count; otherwise assume max merits (5)
+            local merit_count = member.id == player.id and player.merits[haste_effect.merit_name] or 5
+            haste_effect.potency = haste_effect.potency_base + (haste_effect.potency_per_merit * merit_count)
+          else
+            haste_effect.potency = haste_effect.potency_base
+          end
+        end
+      end
+      
+      hasteinfo.add_haste_effect(member, haste_effect)
+    end
+  end
 end
 
 function hasteinfo.reset_member(member)
@@ -763,7 +798,274 @@ end
 function hasteinfo.from_server_time(t)
   return t / 60 + hasteinfo.clock_offset
 end
+
+function hasteinfo.now()
+  return os.clock()
+end
+
+-- Sort by expiration if all elements have expiration; otherwise sort by received_at
+function hasteinfo.sort_song_dur(is_missing_expirations)
+  return function(e1, e2)
+    if is_missing_expirations then
+      return e1.received_at < e2.received_at
+    else
+      return e1.expiration < e2.expiration
+    end
+  end
+end
+
+-- Update tracked songs
+-- Note: song expirations can vary by +/-1 second between packets
+function hasteinfo.update_songs(member, buffs)
+  local new_buffs = L{}
+  -- Check if our current song count is accurate
+  for buff in buffs:it() do
+    if buff.id == 214 then
+      new_buffs:append(buff)
+    end
+  end
+
+  local new_count = new_buffs:count()
+
+  if new_count == 0 then -- Has no songs now, remove all
+    member.songs = T{}
+    return
+  end
+
+  -- Sort by expiration
+  new_buffs:sort(hasteinfo.sort_song_dur(false))
+
+  local my_song_copy = L{}
+  for buff in member.songs:it() do
+    my_song_copy:append(buff)
+  end
+
+  local old_count = my_song_copy:count()
+
+  local is_missing_expirations = my_song_copy:with('expiration', nil)
+  my_song_copy:sort(hasteinfo.sort_song_dur(is_missing_expirations))
+
+  local count_diff = new_count - old_count
+
+  if count_diff == 0 then -- Count accurate; maybe no difference, but maybe refreshed buff duration
+    -- Try to determine if a duration was refreshed
+    -- Use expiration matching to figure out which songs were refreshed
+    for new_song in new_buffs:it() do
+      for old_song in my_song_copy:it() do
+        if old_song.expiration and math.abs(new_song.expiration - old_song.expiration) < 1 then
+          old_song.expiration = new_song.expiration
+          old_song.paired = true
+          new_song.paired = true
+          break
+        end
+      end
+    end
+    -- For remaining unpaired songs, match by reverse order
+    my_song_copy:reverse()
+    for new_song in new_buffs:it() do
+      if not new_song.paired then
+        for old_song in my_song_copy:it() do
+          if not old_song.paired then
+            old_song.received_at = hasteinfo.now()
+            old_song.expiration = new_song.expiration
+          end
+        end
+      end
+    end
+
+    -- Update songs
+    for song in my_song_copy:it() do
+      -- Clean up attributes
+      song.paired = nil
+
+      member.songs[song.triggering_id] = song
+    end
+  elseif count_diff < 0 then -- Lost song(s); timed out, dispelled, or overwritten
+    -- Two ways to find matches:
+    -- 1) expirations match within +/-1
+    -- 2) matches no known expiration, pick a random nil expiration to pair it with
+    local keep_songs = L{}
+
+    -- Try match method 1, use expiration matching to figure out which songs were lost
+    for new_song in new_buffs:it() do
+      for old_song in my_song_copy:it() do
+        if old_song.expiration and math.abs(new_song.expiration - old_song.expiration) < 1 then
+          old_song.expiration = new_song.expiration
+          old_song.paired = true
+          new_song.paired = true
+          keep_songs:append(old_song)
+          break
+        end
+      end
+    end
+
+    if keep_songs ~= new_count then -- Do second pass with match method 2
+      for new_song in new_buffs:it() do
+        if not new_song.paired then -- Still needs a match
+          for old_song in my_song_copy:it() do
+            if not old_song.paired then
+              if not old_song.expiration then
+                old_song.expiration = new_song.expiration
+                old_song.paired = true
+                new_song.paired = true
+                keep_songs:append(old_song)
+                break
+              else
+                -- Do I need to handle this case?
+                print('Unhandled case in lost song determination.')
+              end
+            end
+          end
+        end
+      end
+    end
+
+    -- Double check that list is correct
+    if keep_songs ~= new_count then
+      print('Logic that determines lost songs is incorrect.')
+    end
+
+    -- Update song list
+    member.songs = T{} -- Start by clearing out the old
+
+    for song in keep_songs:it() do
+      -- Clean up attributes
+      song.paired = nil
+
+      member.songs[song.triggering_id] = song
+    end
+  elseif count_diff > 0 then -- Gained song(s) after having missed the action packet
+    local gained_songs = L{}
+
+    -- Try to use expiration match
+    for new_song in new_buffs:it() do
+      for old_song in my_song_copy:it() do
+        if old_song.expiration and math.abs(new_song.expiration - old_song.expiration) < 1 then
+          old_song.expiration = new_song.expiration
+          old_song.paired = true
+          new_song.paired = true
+          break
+        end
+      end
+    end
+    -- If there are remaining unpaired old songs, pair them based on remaining duration (shortest first)
+    for new_song in new_buffs:it() do
+      if not new_song.paired then
+        for old_song in my_song_copy:it() do
+          if not old_song.paired then
+            old_song.expiration = new_song.expiration
+            old_song.paired = true
+            new_song.paired = true
+            break
+          end
+        end
+      end
+      -- If new song still not paired, there is nothing to pair with and this is a new song entirely
+      gained_songs:append(new_song)
+    end
+
+    -- Update song list with new expiration times
+    for old_song in my_song_copy:it() do
+      member.songs[old_song.triggering_id].expiration = old_song.expiration
+    end
+
+    -- If there are gained songs, try to use a smart deduction to figure out its trigger action
+    local song_assumption_priority = hasteinfo.song_assumption_priority:copy()
+
+    -- Gained songs should already be sorted by shortest duration first
+    for song in gained_songs:it() do
+      for assumed_song in song_assumption_priority:it() do
+        -- If assumed song not already tracked, add it and include instance specific attributes
+        if not member.songs[assumed_song.triggering_id] then
+          assumed_song.received_at = hasteinfo.now()
+          assumed_song.expiration = song.expiration
+          member.songs[assumed_song.triggering_id] = assumed_song
+        end
+      end
+    end
+  end
+end
+
+-- Make updates for both gained and lost buffs
+-- Reconcile these buffs with tracked haste effects and actions; resolve discrepancies using assumed values
+-- Does not need to deal with bard songs
+function hasteinfo.reconcile_buff_update(member, new_buffs)
+  if not member or not new_buffs then return end
   
+  -- Put into correct format
+  new_buffs = L(new_buffs)
+  new_buffs:map(function(buff)
+    if type(buff) == table then
+      return buff
+    else
+      return {id=buff}
+    end
+  end)
+
+  -- Filter new buffs for only ones relevant to us
+  new_buffs:filter(function(buff)
+    return (hasteinfo.HASTE_BUFF_IDS:contains(buff.id) or hasteinfo.SLOW_DEBUFF_IDS:contains(buff.id)
+      or hasteinfo.OTHER_RELEVANT_BUFFS:contains(buff.id)) and not S{417, 419, 420}:contains(buff.id)
+  end)
+
+  -- Assume correct format since this is the only place member.buffs is ever modified
+  local old_buffs = table.copy(member.buffs, true)
+
+  -- Update buff list to new list
+  member.buffs = new_buffs
+
+  -- To figure out the impact on haste effects, we need to know which buffs were gained and lost
+  local gained_buffs = L{}
+  local lost_buffs = L{}
+
+  for new_buff in new_buffs:it() do
+    for old_buff in old_buffs:it() do
+      if new_buff.id == old_buff.id and not old_buff.paired then
+        new_buff.paired = true
+        old_buff.paired = true
+        -- Old buffs that were paired may have had duration refreshed. Need to do anything here?
+        break
+      end
+    end
+    if not new_buff.paired then
+      gained_buffs:append(new_buff)
+    end
+  end
+
+  -- Remaining unpaired old buffs can be considered lost
+  for old_buff in old_buffs:it() do
+    if not old_buff.paired then
+      lost_buffs:append(old_buff)
+    end
+  end
+
+  -- Resolve new buffs' haste effects and other special handling
+  for buff in gained_buffs:it() do
+    if buff.id == hasteinfo.BOLSTER_BUFF_ID then -- Resolve Bolster effect on current Indi spell potency
+      -- TODO: update indi- table, and haste effects for all party members who have the corresponding buff
+    elseif buff.id == hasteinfo.ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve EA effect on current Geo spell potency
+      -- TODO: update geo- table, and haste effects for all party members who have the corresponding buff
+    elseif hasteinfo.HASTE_BUFF_IDS:contains(buff.id) then
+      hasteinfo.deduce_haste_effects(member)
+    end
+  end
+  
+  -- Resolve lost buffs' haste effects and other special handling
+  for buff in lost_buffs:it() do
+    -- See if there is a corresponding haste effect on player
+    local haste_effect = member.haste_effects[buff.id]
+    if haste_effect then -- Remove haste effect
+      member.haste_effects[buff.id] = nil
+    end
+
+    -- If lost buff is Colure Active, and this player was tracked as an indi target, remove from indi table
+    if buff.id == hasteinfo.COLURE_ACTIVE_ID then
+      if hasteinfo.indi_active[member.id] then
+        hasteinfo.indi_active[member.id] = nil
+      end
+    end
+  end
+end
 
 
 -------------------------------------------------------------------------------
@@ -803,11 +1105,10 @@ windower.raw_register_event('incoming chunk', function(id, data, modified, injec
     local member = hasteinfo.get_member(player.id, player.name)
     hasteinfo.update_job_from_packet(member, packet)
   elseif id == 0x063 then -- Set Update packet
-    -- update buff durations
-    -- credit: Akaden, Buffed addon
+    -- Update buff durations. credit: Akaden, Buffed addon
     local order = data:unpack('H',0x05)
     if order == 9 then
-      local read_statuses = {}
+      local buffs = T{}
 
       -- read ids
       for i = 1, 32 do
@@ -815,18 +1116,26 @@ windower.raw_register_event('incoming chunk', function(id, data, modified, injec
         local status_i = data:unpack('H', index)
 
         if status_i ~= 255 then
-          read_statuses[i] = { id = status_i }
+          buffs[i] = { id = status_i }
         end
       end
       -- read times
       for i = 1, 32 do
-        if read_statuses[i] then
+        if buffs[i] then
           local index = 0x49 + ((i-1) * 0x04)
-          local endtime = data:unpack('I', index)
+          local expiration = data:unpack('I', index)
 
-          read_statuses[i].endtime = from_server_time(endtime)
+          buffs[i].expiration = hasteinfo.from_server_time(expiration)
         end
       end
+
+      local me = hasteinfo.get_member(player.id, player.name)
+
+      -- Update song expirations
+      hasteinfo.update_songs(me, buffs)
+
+      -- Reconcile these buffs with tracked haste effects and actions; resolve discrepancies using assumed values
+      hasteinfo.reconcile_buff_update(me, buffs)
     end
   elseif id == 0x037 then -- Update Char packet
     -- update clock offset
@@ -839,19 +1148,6 @@ windower.raw_register_event('incoming chunk', function(id, data, modified, injec
   end
 end)
 
-windower.raw_register_event('gain buff', function(buff_id)
-  windower.add_to_chat(001, 'gained buff '..buff_id)
-  if hasteinfo.haste_buff_ids:contains(buff_id) or hasteinfo.slow_debuff_ids:contains(buff_id) then
-    local member = hasteinfo.get_member(player.id, player.name)
-    hasteinfo.add_buff(member, buff_id)
-  end
-end)
-
-windower.raw_register_event('lose buff', function(buff_id)
-  windower.add_to_chat(001, 'last buff '..buff_id)
-  local member = hasteinfo.get_member(player.id, player.name)
-  hasteinfo.remove_buff(member, buff_id)
-end)
 
 windower.raw_register_event('action', function(act)
   if act.category == 1 and player.id == act.actor_id then -- Melee attack
