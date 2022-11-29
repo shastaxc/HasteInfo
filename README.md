@@ -43,12 +43,11 @@ You can enable optional features using the following commands:
 
 ## How It Works
 
-HasteInfo will track actions taken on you or your party members that are related to haste (list of these actions can be found below). It also tracks buffs on you and your party members. When an action is taken, it will check the buff list on the player receiving the effect and map the buffs to the casting action. Due to the timing of when buffs show up (after the cast), there is a period of time when the action that was taken has no corresponding buff to map to. For this reason, HasteInfo also checks in the reverse direction. When there is an incoming buff, it checks the actions that were previously taken on that player in order to map that buff to an action. In this way, HasteInfo can determine the potency of a Haste buff (id 33) even though several actions could grant that buff to a player. The buff ID itself does not vary even though the potency might.
+HasteInfo starts by tracking haste-related actions performed on you and haste buffs on you, and links them together to determine potency based on a variety of factors (see "Sources of Haste" section below). This is the ideal scenario, but lost action packets can cause some information to be lost and assumptions must be made (see "Assumptions" section below).
 
-Edge cases:
-* If an action is taken on a player who already has the corresponding buff, the result may be either "no effect" or overriding the current buff. If overriding the current buff, it could be either the same or stronger potency so this has to be updated. There is no incoming party buff packet (id 0x076) when this happens because the buff icons do not change. Unknown yet if there is an "buff gained" event triggered when this happens to the primary user.
-* GEO spells can have an effect on the primary user even though no action was performed on them. Indi- spells are tracked by pegging them to the player who "owns" them (who it's on) as well as who casted them (since the caster affects potency too). Geo- spells are pegged to the caster since they cannot ever be "owned" by another player, whereas Indi- spells can be Entrusted to other players. When a GEO buff appears on a player, all party members are checked to find the owner in order to determined its potency based on the original casting action.
-* Sambas are not detected as buffs, but can be detected based on the spike animation when you perform a melee attack. It is then tracked in a special attribute called samba_start which tracks the most recent timestamp of your melee attack that gained you the buff. It remains tracked until something checks your haste values. At that point, it is determined if the buff is expired or not. Alternatively, disengaging from a mob will also clear the tracked samba effect.
+To help reconcile some discrepancies due to packet loss, HasteInfo also listens to character update packets that list your buffs and their durations and uses that as the source of truth for which buffs you actually have on. Unfortunately, it doesn't include info such as who casted that buff or which spell it came from (all BRD Marches just show as "March" and doesn't tell you which spell effect it is). Because of this, it is not the first choice in determining potencies but it can be used to help in maintaining a relatively accurate measure of your haste buffs.
+
+Additionally, Geomancy buffs (Indi-Haste and Geo-Haste) do not require any action to be taken on yourself in order for you to gain the buff effect. For this reason, HasteInfo also monitors actions by your party members and buffs on your party members. If those action packets are lost, we have to reconcile that using assumptions as well when the buff update packets come in.
 
 ### Sources of Haste
 
@@ -70,9 +69,9 @@ Sources of Haste accounted for:
 
 ### Assumptions
 
-Haste potency assumptions:
 * All GEOs have Idris (will add whitelist and blacklist feature later)
 * All BRDs have max bonus to Marches (will add whitelist and blacklist feature later)
+* BRDs are not overwriting other BRD's songs (but ok if they overwrite their own), and that all their song durations are consistent (at least within a song type like same duration for all Marches).
 * Haste Samba is from sub DNC, unless there is a main DNC in your party. Main DNC assumed to have 5/5 Haste Samba potency merits if it's not yourself.
 * SCH casting Embrava has 500 Enhancing Magic skill (capped Embrava potency)
 * Assumes DRG Spirit Link Haste is already on if reloading addon (no buff on player to tell for sure)
@@ -90,18 +89,26 @@ ignored by HasteInfo.
 * Unknown sources of Haste will be assumed to be 150/1024 (~15%)
 * Anonymous jobs must be deduced by the spells and abilities used. Only DNC really needs to be tracked.
 
+## Misc Info
+
+* If an action is taken on a player who already has the corresponding buff, the result may be either "no effect" or overriding the current buff. If overriding the current buff, it could be either the same or stronger potency so this has to be updated. There is no incoming party buff packet (id 0x076) or "gain buff" event when this happens because the buff icons do not change.
+* GEO spells can have an effect on the primary user even though no action was performed on them. Indi- spells are tracked by pegging them to the player who was targeted (in case of Entrusted spells) as well as who casted them (since the caster affects potency too). Geo- spells are pegged to the caster since they cannot ever be "owned" by another player. When a GEO buff appears on a player, we can look up the previous actions taken and determine who casted it, and therefore its potency.
+* Sambas are not detected as buffs, but can be detected based on the spike animation when you perform a melee attack. It is then tracked in a special attribute called samba_start which tracks the most recent timestamp of your melee attack that gained you the buff. It remains tracked until something checks your haste values. At that point, it is determined if the buff is expired or not. Alternatively, disengaging from a mob will also clear the tracked samba effect.
+* Bard songs are annoying in the sense that buff IDs are not specific for individual songs. All marches have the same buff ID (214), and simply appear that you have multiple of the same buff. This is the only situation where you can have multiple buff IDs active at the same time. For this reason, active bard songs are maintained separately from the other buffs because it doesn't fit the logic used for all other buffs.
+* When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
+
 ## TODO
 * Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
 * Enhance initialization
   - Detect buffs on self and apply some logic to deduce haste effects (can use windower.ffxi.get_player().buffs to start)
   - Determine DW traits
-* On changing jobs, write player data to file, to retrieve after library reloads. Cannot prevent gearswap from reloading the whole addon when changing jobs. That's a built-in, unavoidable feature of gearswap.
+  - On changing jobs, write player, indi, and geo tables to file. Retrieve after library reloads during intialization. Cannot prevent gearswap from reloading the whole addon when changing jobs. That's a built-in, unavoidable feature of gearswap.
 * Test if additional effect: haste weapons triggers an animation on melee hit when it procs.
 * Remaining actions to account for haste effects:
   - Additional Effect: Haste weapons
-  - Bard Songs
   - Catastrophe Aftermath
   - Pet actions
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
 * Account for Marcato, Soul Voice potency
+* Detect zone change events for other players and call the `remove_zoned_effects()` function
