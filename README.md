@@ -100,13 +100,11 @@ ignored by HasteInfo.
 ## TODO
 * Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
 * Enhance initialization
-  - Detect buffs on self and apply some logic to deduce haste effects (can use windower.ffxi.get_player().buffs to start)
   - Determine DW traits
   - On changing jobs, write player, indi, and geo tables to file. Retrieve after library reloads during intialization. Cannot prevent gearswap from reloading the whole addon when changing jobs. That's a built-in, unavoidable feature of gearswap.
 * Test if additional effect: haste weapons triggers an animation on melee hit when it procs.
 * Remaining actions to account for haste effects:
   - Additional Effect: Haste weapons
-  - Catastrophe Aftermath
   - Pet actions
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
