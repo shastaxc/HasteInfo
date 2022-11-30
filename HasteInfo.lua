@@ -50,6 +50,7 @@ require('strings')
 
 res = require('resources')
 packets = require('packets')
+config = require('config')
 
 require('statics')
 
@@ -167,8 +168,8 @@ function init()
 
   -- Add initial party data
   local party = windower.ffxi.get_party()
-	for i = 0, 5 do
-		local member = party['p'..i]
+  for i = 0, 5 do
+    local member = party['p'..i]
     if member and member.name then
       local actor_id
       if member.mob and member.mob.id > 0 then
@@ -199,7 +200,7 @@ function init()
 end
 
 function load_settings()
-  settings = config.load('data\\'..windower.ffxi.get_player().name..'_settings.xml',defaults)
+  settings = config.load('data\\settings.xml',defaults)
   settings:save('all')
   -- sections.background = ImageBlock.New(0,'background','')
   -- sections.logo = ImageBlock.New(1,'logo','')
@@ -268,10 +269,10 @@ end
 
 -- Packet should already be parsed
 function update_job_from_packet(member, packet)
-	local main_job = packet['Main job']
-	local main_job_lv = packet['Main job level']
-	local sub_job =  packet['Sub job']
-	local sub_job_lv = packet['Sub job level']
+  local main_job = packet['Main job']
+  local main_job_lv = packet['Main job level']
+  local sub_job =  packet['Sub job']
+  local sub_job_lv = packet['Sub job level']
 
   if main_job and main_job ~= 'NON' then
     member.main = res.jobs[main_job].ens
@@ -927,7 +928,7 @@ end
 -- Event hooks
 -------------------------------------------------------------------------------
 
-windower.raw_register_event('incoming chunk', function(id, data, modified, injected, blocked)
+windower.register_event('incoming chunk', function(id, data, modified, injected, blocked)
   if id == 0x076 then -- Party buffs update; does not include buffs on self
     parse_buffs(data)
   elseif id == 0xDF then -- char update
@@ -1001,7 +1002,7 @@ windower.raw_register_event('incoming chunk', function(id, data, modified, injec
 end)
 
 
-windower.raw_register_event('action', function(act)
+windower.register_event('action', function(act)
   if act.category == 1 and player.id == act.actor_id then -- Melee attack
     parse_action(act, ACTION_TYPE.SELF_MELEE)
   elseif act.category == 6 then -- JA; Only care about JA on self, except Entrust
@@ -1032,7 +1033,7 @@ end)
 
 -- Triggers on player status change. This only triggers for the following statuses:
 -- Idle, Engaged, Resting, Dead, Zoning
-windower.raw_register_event('status change', function(new_status_id, old_status_id)
+windower.register_event('status change', function(new_status_id, old_status_id)
   -- In any of these status change scenarios, haste samba status should be reset
   -- Other effects will update from the buff update packet
   local member = get_member(player.id, player.name)
@@ -1042,30 +1043,85 @@ windower.raw_register_event('status change', function(new_status_id, old_status_
 end)
 
 -- Hook into job/subjob change event (happens BEFORE job starts changing)
-windower.raw_register_event('outgoing chunk', function(id, data, modified, injected, blocked)
+windower.register_event('outgoing chunk', function(id, data, modified, injected, blocked)
   if id == 0x100 then -- Sending job change command to server
     local member = get_member(player.id, player.name)
     reset_member(member)
   end
 end)
 
-windower.raw_register_event('zone change', function(new_zone, old_zone)
+windower.register_event('zone change', function(new_zone, old_zone)
   -- Update buffs after zoning
   local member = get_member(player.id, player.name)
   remove_zoned_effects(member)
 end)
 
 windower.register_event('load', function()
-	if windower.ffxi.get_player() then
+  if windower.ffxi.get_player() then
     init()
   end
 end)
 
 
 windower.register_event('logout', function()
-	
+  
 end)
 
 windower.register_event('login',function ()
-	windower.send_command('lua r hasteinfo;')
+  windower.send_command('lua r hasteinfo;')
+end)
+
+windower.register_event('addon command', function(command, ...)
+  local args = {...}
+  local cmd = command and command:lower()
+  if cmd then
+    if S{'reload', 'r'}:contains(cmd) then
+      windower.send_command('lua r hasteinfo')
+    elseif S{'visible', 'vis'}:contains(cmd) then
+      -- TODO
+    elseif 'show' == cmd then
+      -- TODO
+    elseif 'hide' == cmd then
+      -- TODO
+    elseif 'resetui' == cmd then
+      -- TODO
+    elseif 'report' == cmd then
+      -- TODO
+    elseif S{'pause', 'freeze', 'stop', 'halt'}:contains(cmd) then
+      -- TODO
+    elseif S{'unpause', 'play', 'resume', 'continue', 'start'}:contains(cmd) then
+      -- TODO
+    elseif 'test' == cmd then
+    elseif 'debug' == command:lower() == 'debug' then
+      DEBUG_MODE = not DEBUG_MODE
+      log('Toggled Debug Mode to '..tostring(DEBUG_MODE))
+    elseif command:lower() == 'help' then
+      
+      local chat_purple = string.char(0x1F, 200)
+      local chat_grey = string.char(0x1F, 160)
+      local chat_red = string.char(0x1F, 167)
+      local chat_white = string.char(0x1F, 001)
+      local chat_green = string.char(0x1F, 214)
+      local chat_yellow = string.char(0x1F, 036)
+      local chat_d_blue = string.char(0x1F, 207)
+      local chat_pink = string.char(0x1E, 5)
+      local chat_l_blue = string.char(0x1E, 6)
+      
+      windower.add_to_chat(6, ' ')
+      windower.add_to_chat(6, chat_d_blue.. 'HasteInfo Commands available:' )
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi r\'' .. chat_white .. ': Reload HasteInfo addon')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi vis \'' .. chat_white .. ': Toggle UI visibility')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi show \'' .. chat_white .. ': Show UI')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi hide \'' .. chat_white .. ': Hide UI')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi resetui \'' .. chat_white .. ': Reset position of UI to default')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi pause \'' .. chat_white .. ': Pause haste reports (but continues processing)')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi play \'' .. chat_white .. ': Unpause haste reports (but continues processing)')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi debug \'' .. chat_white .. ': Toggle debug mode')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi help \'' .. chat_white .. ': Display this help menu again')
+    else
+      windower.send_command('hi help')
+    end
+  else
+    windower.send_command('hi help')
+  end
 end)
