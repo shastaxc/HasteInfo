@@ -107,12 +107,10 @@ ignored by HasteInfo.
 * Remove party members if they are not present in the party buff packet
 * Implement commands:
   - Stop reporting
-  - Toggle UI visibility
-  - Show UI
-  - Hide UI
-  - Reset UI position
   - Pause reports
   - Unpause reports
+  - Toggle party details UI
+  - Toggle haste details UI
 * Implement UI
   - Display current haste value
   - Display current DW value

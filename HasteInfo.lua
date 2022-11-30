@@ -51,6 +51,7 @@ require('strings')
 res = require('resources')
 packets = require('packets')
 config = require('config')
+texts = require('texts')
 
 require('statics')
 
@@ -201,17 +202,28 @@ end
 
 function load_settings()
   settings = config.load('data\\settings.xml',defaults)
-  settings:save('all')
-  -- sections.background = ImageBlock.New(0,'background','')
-  -- sections.logo = ImageBlock.New(1,'logo','')
+  settings:save() -- In case file didn't exist, this creates one with defaults
+  ui = texts.new('${value}', settings.display)
+  
+  ui.value = 'HasteInfo Loading...'
+
+  -- Set UI visibility based on saved setting
+  ui:visible(settings.show_ui)
 end
 
 -------------------------------------------------------------------------------
 -- UI Functions
 -------------------------------------------------------------------------------
 
+function toggle_ui()
+  local is_vis = ui:visible()
+  ui:visible(not is_vis)
+end
 function show_ui()
-  show_ui = true
+  ui:show()
+end
+function hide_ui()
+  ui:hide()
 end
 
 
@@ -875,10 +887,10 @@ function reconcile_buff_update(member, new_buffs)
 
   for new_buff in new_buffs:it() do
     for old_buff in old_buffs:it() do
+      -- TODO: Not enough to pair by ID. If expirations significantly changed, potency may have changed too. Might have just lost an action packet.
       if new_buff.id == old_buff.id and not old_buff.paired then
         new_buff.paired = true
         old_buff.paired = true
-        -- Old buffs that were paired may have had duration refreshed. Need to do anything here?
         break
       end
     end
@@ -1062,41 +1074,63 @@ windower.register_event('load', function()
   end
 end)
 
+windower.register_event('unload', function()
+  hide_ui()
+  settings:save()
+end)
 
 windower.register_event('logout', function()
-  
+  hide_ui()
+  settings:save()
 end)
 
 windower.register_event('login',function ()
-  windower.send_command('lua r hasteinfo;')
+  windower.send_command('lua r hasteinfo')
 end)
 
-windower.register_event('addon command', function(command, ...)
+windower.register_event('addon command', function(cmd, ...)
+  local cmd = cmd and cmd:lower()
   local args = {...}
-  local cmd = command and command:lower()
+  -- Force all args to lowercase
+  for k,v in ipairs(args) do
+    args[k] = v:lower()
+  end
+
   if cmd then
     if S{'reload', 'r'}:contains(cmd) then
       windower.send_command('lua r hasteinfo')
     elseif S{'visible', 'vis'}:contains(cmd) then
-      -- TODO
+      settings.show_ui = not settings.show_ui
+      settings:save()
+      toggle_ui()
     elseif 'show' == cmd then
-      -- TODO
+      settings.show_ui = true
+      settings:save()
+      show_ui()
     elseif 'hide' == cmd then
-      -- TODO
-    elseif 'resetui' == cmd then
-      -- TODO
+      settings.show_ui = false
+      settings:save()
+      hide_ui()
+    elseif 'resetpos' == cmd then
+      settings.display.pos.x = 0
+      settings.display.pos.y = 0
+      settings:save()
+      ui:pos(0, 0)
+    elseif 'party' == cmd then
+      -- TODO: toggle party details in UI
+    elseif 'details' == cmd then
+      -- TODO: toggle main player's haste details in UI
     elseif 'report' == cmd then
-      -- TODO
-    elseif S{'pause', 'freeze', 'stop', 'halt'}:contains(cmd) then
-      -- TODO
-    elseif S{'unpause', 'play', 'resume', 'continue', 'start'}:contains(cmd) then
-      -- TODO
+      -- TODO: send latest report
+    elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
+      -- TODO: pause updating UI and sending reports, but keep updating tracked buffs and haste effects
+    elseif S{'unpause', 'play', 'resume', 'continue', 'start', 'on', 'enable'}:contains(cmd) then
+      -- TODO: continue updating UI and sending reports
     elseif 'test' == cmd then
-    elseif 'debug' == command:lower() == 'debug' then
+    elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
-      log('Toggled Debug Mode to '..tostring(DEBUG_MODE))
-    elseif command:lower() == 'help' then
-      
+      log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
+    elseif 'help' == cmd then
       local chat_purple = string.char(0x1F, 200)
       local chat_grey = string.char(0x1F, 160)
       local chat_red = string.char(0x1F, 167)
@@ -1113,7 +1147,9 @@ windower.register_event('addon command', function(command, ...)
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi vis \'' .. chat_white .. ': Toggle UI visibility')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi show \'' .. chat_white .. ': Show UI')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi hide \'' .. chat_white .. ': Hide UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi resetui \'' .. chat_white .. ': Reset position of UI to default')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi resetpos \'' .. chat_white .. ': Reset position of UI to default')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi party \'' .. chat_white .. ': Toggle party details in UI')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi details \'' .. chat_white .. ': Toggle your own haste details in UI')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi pause \'' .. chat_white .. ': Pause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi play \'' .. chat_white .. ': Unpause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi debug \'' .. chat_white .. ': Toggle debug mode')

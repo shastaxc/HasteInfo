@@ -1,5 +1,34 @@
 player = windower.ffxi.get_player()
 
+-- Default settings
+defaults = {
+  show_ui=false,
+  display={
+    text={
+      size=10,
+      font='Consolas',
+      alpha=255,
+      red=255,
+      green=255,
+      blue=255,
+    },
+    pos={
+      x=0,
+      y=0
+    },
+    bg={
+      visible=true,
+      alpha=200,
+      red=0,
+      green=0,
+      blue=0,
+    },
+    flag={
+      draggable=true
+    },
+  }
+}
+
 -- Fraction caps are all numerators. The denominator for each is 1024.
 haste_caps = {
   ['total'] = {
