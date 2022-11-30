@@ -118,3 +118,9 @@ ignored by HasteInfo.
   - Display current DW value
   - Option to display haste effects breakdown
   - Option to display tracked party members and their jobs
+* Account for debuff effects:
+  - Battlefield Elegy (-256/1024)
+  - Carnage Elegy (-512/1024)
+  - Weakness (-1024/1024)
+  - Slow/Slow II (-300/1024)
+  - Indi/Geo-Slow (-204/1024)
