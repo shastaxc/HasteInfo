@@ -1,4 +1,4 @@
--- Version 2022.NOV.29.002
+-- Version 2022.NOV.29.003
 -- Copyright © 2022, Shasta
 -- All rights reserved.
 
@@ -395,6 +395,21 @@ function hasteinfo.init()
   
   -- Add primary user
   local me = hasteinfo.add_member(player.id, player.name)
+
+  -- Add initial party data
+  local party = windower.ffxi.get_party()
+	for i = 0, 5 do
+		local member = party['p'..i]
+    if member and member.name then
+      local actor_id
+      if member.mob and member.mob.id > 0 then
+        actor_id = member.mob.id
+      end
+      -- Create user if doesn't already exist
+      hasteinfo.get_member(actor_id, member.name)
+    end
+  end
+  
   -- Try to determine current haste effects based on buff icons
   local current_buffs = windower.ffxi.get_player().buffs
   current_buffs = hasteinfo.format_buffs(current_buffs)
@@ -412,19 +427,6 @@ function hasteinfo.init()
   hasteinfo.deduce_haste_effects(me, current_buffs)
   me.buffs = current_buffs
 
-  -- Add initial party data
-  local party = windower.ffxi.get_party()
-	for i = 0, 5 do
-		local member = party['p'..i]
-    if member and member.name then
-      local actor_id
-      if member.mob and member.mob.id > 0 then
-        actor_id = member.mob.id
-      end
-      -- Create user if doesn't already exist
-      hasteinfo.get_member(actor_id, member.name)
-    end
-  end
 end
 
 
@@ -534,37 +536,40 @@ function hasteinfo.parse_action(act, type)
     local haste_effect = table.copy(hasteinfo.haste_triggers['Magic'][act.param])
 
     -- Record this action. The next player update packet will tell us what the effect really was.
-    local caster = hasteinfo.get_member(act.actor_id)
+    local caster = hasteinfo.get_member(act.actor_id, nil, true)
+    if not caster or not hasteinfo.player[caster.id] then return end
 
     for i,target in ipairs(act.targets) do
       -- Only care about songs on main player
       if target.id == me.id then
         local target_member = hasteinfo.get_member(target.id)
-  
-        -- Add song gear bonuses
-        local song_bonus = 0
-        if caster then -- caster is in party
-          -- Check for trusts
-          if hasteinfo.trusts:with('name', caster.name) or caster.sub == 'BRD' then
-            song_bonus = 0
-          else
+        if target_member then
+          -- Add song gear bonuses
+          local song_bonus = 0
+          if caster then -- caster is in party
+            -- Check for trusts
+            if hasteinfo.trusts:with('name', caster.name) or caster.sub == 'BRD' then
+              song_bonus = 0
+            else
+              song_bonus = haste_effect.song_cap
+            end
+          else -- caster is not defined, must make assumptions about song potency
             song_bonus = haste_effect.song_cap
           end
-        else -- caster is not defined, must make assumptions about song potency
-          song_bonus = haste_effect.song_cap
+    
+          -- Determine potency
+          haste_effect.potency = haste_effect.potency_base + (haste_effect.potency_per_song_point * song_bonus)
+          haste_effect.received_at = hasteinfo.now()
+          target_member.songs[act.param] = haste_effect
         end
-  
-        -- Determine potency
-        haste_effect.potency = haste_effect.potency_base + (haste_effect.potency_per_song_point * song_bonus)
-        haste_effect.received_at = hasteinfo.now()
-        target_member.songs[act.param] = haste_effect
       end
     end
   elseif type == hasteinfo.ACTION_TYPE.GEOMANCY then
     if not hasteinfo.haste_triggers['Magic'][act.param] then return end
     local haste_effect = table.copy(hasteinfo.haste_triggers['Magic'][act.param])
     
-    local caster = hasteinfo.get_member(act.actor_id)
+    local caster = hasteinfo.get_member(act.actor_id, nil, true)
+    if not caster or not hasteinfo.player[caster.id] then return end
 
     for i,target in ipairs(act.targets) do
       local target_member = hasteinfo.get_member(target.id)
@@ -597,18 +602,18 @@ function hasteinfo.parse_action(act, type)
     if not hasteinfo.haste_triggers['Magic'][act.param] then return end
     local haste_effect = table.copy(hasteinfo.haste_triggers['Magic'][act.param])
     
-    local caster = hasteinfo.get_member(act.actor_id)
-
     for i,target in ipairs(act.targets) do
-      local target_member = hasteinfo.get_member(target.id)
-      for i,a in ipairs(target.actions) do
-        local buff_id = a.param
-        -- If buff doesn't match a buff that we're interested in, ignore.
-        -- Also, 'no effect' spells have buff_id == 0, so this check filters those too
-        if hasteinfo.HASTE_BUFF_IDS:contains(buff_id) or hasteinfo.SLOW_DEBUFF_IDS:contains(buff_id) then
-          -- Determine potency
-          haste_effect.potency = haste_effect.potency_base
-          hasteinfo.add_haste_effect(target_member, haste_effect)
+      local target_member = hasteinfo.get_member(target.id, nil, true)
+      if target_member then
+        for i,a in ipairs(target.actions) do
+          local buff_id = a.param
+          -- If buff doesn't match a buff that we're interested in, ignore.
+          -- Also, 'no effect' spells have buff_id == 0, so this check filters those too
+          if hasteinfo.HASTE_BUFF_IDS:contains(buff_id) or hasteinfo.SLOW_DEBUFF_IDS:contains(buff_id) then
+            -- Determine potency
+            haste_effect.potency = haste_effect.potency_base
+            hasteinfo.add_haste_effect(target_member, haste_effect)
+          end
         end
       end
     end
@@ -620,7 +625,24 @@ function hasteinfo.parse_action(act, type)
       hasteinfo.add_haste_effect(me, haste_effect)
     end
   elseif type == hasteinfo.ACTION_TYPE.PET then
-    -- if targets[num].actions[num].param == buff_id, ability had no effect on that target if buff_id == 0
+    if not hasteinfo.haste_triggers['Job Ability'][act.param] then return end
+    local haste_effect = table.copy(hasteinfo.haste_triggers['Job Ability'][act.param])
+    
+    for i,target in ipairs(act.targets) do
+      local target_member = hasteinfo.get_member(target.id, nil, true)
+      if target_member then
+        for i,a in ipairs(target.actions) do
+          local buff_id = a.param
+          -- If buff doesn't match a buff that we're interested in, ignore.
+          -- Also, 'no effect' spells have buff_id == 0, so this check filters those too
+          if hasteinfo.HASTE_BUFF_IDS:contains(buff_id) then
+            -- Determine potency
+            haste_effect.potency = haste_effect.potency_base
+            hasteinfo.add_haste_effect(target_member, haste_effect)
+          end
+        end
+      end
+    end
   end
 end
 
@@ -846,7 +868,6 @@ end
 -- Sort by expiration if all elements have expiration; otherwise sort by received_at
 function hasteinfo.sort_song_dur(is_missing_expirations)
   return function(e1, e2)
-    windower.add_to_chat(001, 'comparing:')
     table.vprint(e1)
     table.vprint(e2)
     if is_missing_expirations then
@@ -1170,7 +1191,7 @@ windower.raw_register_event('incoming chunk', function(id, data, modified, injec
       -- Reconcile these buffs with tracked haste effects and actions; resolve discrepancies using assumed values
       hasteinfo.reconcile_buff_update(me, buffs)
     end
-  elseif id == 0x037 then -- Update Char packet
+  elseif id == 0x037 then
     -- update clock offset
     -- credit: Akaden, Buffed addon
     local p = packets.parse('incoming', data)

@@ -86,7 +86,8 @@ Sources of Haste accounted for:
 * Catastrophe comes from Apocalypse ilvl 119, making it JA haste. All lower ilvl of Apoc grant equipment haste instead, which is
 ignored by HasteInfo.
 * Slow potency is assumed to be max of 300/1024 (~29.3%). This will apply to both normal Slow debuff as well as aura Slow debuff.
-* Unknown sources of Haste will be assumed to be 150/1024 (~15%)
+* Unknown sources of Haste will be assumed to be 150/1024 (~15%).
+  - This includes additional effect items such as Blurred Knife +1. The client receives no indication at all where that form of haste comes from, only that you received the buff.
 * Anonymous jobs must be deduced by the spells and abilities used. Only DNC really needs to be tracked.
 
 ## Misc Info
@@ -101,12 +102,19 @@ ignored by HasteInfo.
 * Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
 * Enhance initialization
   - Determine DW traits
-  - On changing jobs, write player, indi, and geo tables to file. Retrieve after library reloads during intialization. Cannot prevent gearswap from reloading the whole addon when changing jobs. That's a built-in, unavoidable feature of gearswap.
-* Test if additional effect: haste weapons triggers an animation on melee hit when it procs.
-* Remaining actions to account for haste effects:
-  - Additional Effect: Haste weapons
-  - Pet actions
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
 * Account for Marcato, Soul Voice potency
 * Detect zone change events for other players and call the `remove_zoned_effects()` function
+* Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet)
+* Remove party members if they are not present in the party buff packet
+* Convert this to an addon
+  - Implement commands:
+    - Stop reporting
+    - Toggle UI visibility
+    - Reset UI position
+* Implement UI
+  - Display current haste value
+  - Display current DW value
+  - Option to display haste effects breakdown
+  - Option to display tracked party members and their jobs
