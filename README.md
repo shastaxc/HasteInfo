@@ -1,5 +1,5 @@
 # Haste Info
-FFXI gearswap library that informs the GearSwap addon about haste potency (from buffs) on the player.
+FFXI Windower addon that informs the GearSwap addon about haste potency (from buffs) and dual wield on the player.
 
 HasteInfo is designed to give people the ability to use more optimal gearsets in GearSwap based on
 their current Haste buffs. For example, if you have enough haste between magic buffs, JA buffs, and gear,
@@ -9,7 +9,7 @@ because Dual Wield reduces the amount of TP per hit you get from auto attacks.
 
 ## Purpose
 
-This library is meant to replace the GearInfo addon for the purposes of haste potency calculation and 
+This addon is meant to replace the GearInfo addon for the purposes of haste potency calculation and 
 the subsequent feeding of this info to GearSwap. There are several problems I've identified with GearInfo's
 haste calculations that I'm attempting to solve with HasteInfo:
 * GearSwap-GearInfo feedback loop
@@ -24,34 +24,29 @@ haste calculations that I'm attempting to solve with HasteInfo:
 * Bloat
   - GearInfo calculates a lot of various stats, not just Haste. But GearSwap only cares about Haste.
 * Random error spam
-  - Specifically, there seems to be some occasions where BRD songs can get GearInfo into a state where
+  - Specifically, there seems to be some occasions where Honor March can get GearInfo into a state where
   it just spams error messages, and cannot be fixed without a full addon reload.
+* Performance
+  - GearInfo recalculates stats 2 times per second or more if you have higher than 30 fps because its update loop is tied to the prerender loop
+  - HasteInfo recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand too.
 
 ## Installation/Usage
 
-Include this at the top of your Globals file:
-```
-hasteinfo = include('HasteInfo')
-```
+Download the addon and place the HasteInfo folder into your windower `addons` folder.
+In game, run this command: `lua load hasteinfo`
 
-It does not need to be put into each individual job lua, but you can do so if you wish.
-
-You can enable optional features using the following commands:
-| Feature | Enabling Command | Description |
-| ------- | ---------------- | ----------- |
-| Show UI | hasteinfo.show_ui() | Display the UI |
+If you want it to load automatically when you log in, I highly recommend configuring it in the Plugin Manager addon, which you can get in the Windower launcher.
+Plugin Manager details can be found at https://docs.windower.net/addons/pluginmanager/
 
 ## How It Works
 
-HasteInfo starts by tracking haste-related actions performed on you and haste buffs on you, and links them together to determine potency based on a variety of factors (see "Sources of Haste" section below). This is the ideal scenario, but lost action packets can cause some information to be lost and assumptions must be made (see "Assumptions" section below).
+HasteInfo starts by tracking haste-related actions performed on you (by reading an incoming network packet), and from there can determine what effect this has on your overall haste. It also listens for haste-related buffs on you reported by the server (by reading a different incoming network packet), and links it to haste effects already recorded by action packets. In the ideal scenario, these will match up perfectly, but lost action packets can cause some information to be lost and assumptions must be made (see "Assumptions" section below) during reconciliation.
 
-To help reconcile some discrepancies due to packet loss, HasteInfo also listens to character update packets that list your buffs and their durations and uses that as the source of truth for which buffs you actually have on. Unfortunately, it doesn't include info such as who casted that buff or which spell it came from (all BRD Marches just show as "March" and doesn't tell you which spell effect it is). Because of this, it is not the first choice in determining potencies but it can be used to help in maintaining a relatively accurate measure of your haste buffs.
+To help reconcile some discrepancies due to packet loss, HasteInfo uses the buff packet, which lists your buffs and their durations, as the source of truth for which buffs you actually have on. Unfortunately, it doesn't include info such as who casted that buff or which spell it came from (all BRD Marches just show as "March" and doesn't tell you which spell effect it is). Because of this, it is not the first choice in determining potencies but it can be used to help in maintaining a relatively accurate measure of your haste buffs.
 
-Additionally, Geomancy buffs (Indi-Haste and Geo-Haste) do not require any action to be taken on yourself in order for you to gain the buff effect. For this reason, HasteInfo also monitors actions by your party members and buffs on your party members. If those action packets are lost, we have to reconcile that using assumptions as well when the buff update packets come in.
+Additionally, Geomancy buffs (Indi-Haste and Geo-Haste) do not require any action to be taken on yourself in order for you to gain the buff effect. For this reason, HasteInfo also monitors actions performed on your party members and buffs on your party members. If those action packets are lost, we have to reconcile that using assumptions as well when the buff update packets come in.
 
 ### Sources of Haste
-
-HasteInfo assumes that your equipment haste is always capped in order to avoid one of the shortfalls of GearInfo that I explained above.
 
 Sources of Haste accounted for:
 * GEO-Haste, Indi-Haste
@@ -69,11 +64,12 @@ Sources of Haste accounted for:
 
 ### Assumptions
 
+* HasteInfo assumes that your equipment haste is always capped in order to avoid one of the shortfalls of GearInfo that I explained above.
 * All GEOs have Idris (will add whitelist and blacklist feature later)
 * All BRDs have max bonus to Marches (will add whitelist and blacklist feature later)
 * BRDs are not overwriting other BRD's songs (but ok if they overwrite their own), and that all their song durations are consistent (at least within a song type like same duration for all Marches).
 * Haste Samba is from sub DNC, unless there is a main DNC in your party. Main DNC assumed to have 5/5 Haste Samba potency merits if it's not yourself.
-* SCH casting Embrava has 500 Enhancing Magic skill (capped Embrava potency)
+* SCH casting Embrava has 500+ Enhancing Magic skill (capped Embrava potency)
 * Assumes DRG Spirit Link Haste is already on if reloading addon (no buff on player to tell for sure)
 * Assumes no Haste Samba is active if reloading addon (no buff on player to tell for sure)
 * Is Haste aura from Entrusted Indi-Haste vs Indi-Haste/Geo-Haste?
@@ -85,17 +81,18 @@ Sources of Haste accounted for:
   ignore certain effects that may apply or fall off of the GEO to avoid race conditions.
 * Catastrophe comes from Apocalypse ilvl 119, making it JA haste. All lower ilvl of Apoc grant equipment haste instead, which is
 ignored by HasteInfo.
-* Slow potency is assumed to be max of 300/1024 (~29.3%). This will apply to both normal Slow debuff as well as aura Slow debuff.
-* Unknown sources of Haste will be assumed to be 150/1024 (~15%).
+* Unknown sources of Slow will be assumed to be -300/1024 (~29.3%).
+* Unknown sources of Elegy will be assumed to be -512/1024 (50%).
+* Unknown sources of Haste will be assumed to be -150/1024 (~15%).
   - This includes additional effect items such as Blurred Knife +1. The client receives no indication at all where that form of haste comes from, only that you received the buff.
-* Anonymous jobs must be deduced by the spells and abilities used. Only DNC really needs to be tracked.
+* Anonymous jobs must be deduced by the spells and abilities used, but only DNC really needs to be tracked.
 
 ## Misc Info
 
-* If an action is taken on a player who already has the corresponding buff, the result may be either "no effect" or overriding the current buff. If overriding the current buff, it could be either the same or stronger potency so this has to be updated. There is no incoming party buff packet (id 0x076) or "gain buff" event when this happens because the buff icons do not change.
-* GEO spells can have an effect on the primary user even though no action was performed on them. Indi- spells are tracked by pegging them to the player who was targeted (in case of Entrusted spells) as well as who casted them (since the caster affects potency too). Geo- spells are pegged to the caster since they cannot ever be "owned" by another player. When a GEO buff appears on a player, we can look up the previous actions taken and determine who casted it, and therefore its potency.
-* Sambas are not detected as buffs, but can be detected based on the spike animation when you perform a melee attack. It is then tracked in a special attribute called samba_start which tracks the most recent timestamp of your melee attack that gained you the buff. It remains tracked until something checks your haste values. At that point, it is determined if the buff is expired or not. Alternatively, disengaging from a mob will also clear the tracked samba effect.
-* Bard songs are annoying in the sense that buff IDs are not specific for individual songs. All marches have the same buff ID (214), and simply appear that you have multiple of the same buff. This is the only situation where you can have multiple buff IDs active at the same time. For this reason, active bard songs are maintained separately from the other buffs because it doesn't fit the logic used for all other buffs.
+* If an action is taken on a party member who already has the corresponding buff, the result may be either "no effect" or overriding the current buff. If overriding the current buff, it could be either the same or stronger potency so this has to be updated. There is no incoming party buff packet (id 0x076) when this happens because the buff icons do not change, so we have to rely on the action packet and if it gets dropped, haste values simply remain incorrect. For the primary player though, we receive buff durations along with their buff update packet, and this can be used to match with current buffs to determine if there was a change and try to deduce the correct new haste value.
+* GEO spells can have an effect on the primary user even though no action was performed on them. Indi- spells are tracked by pegging them to the player who was targeted (in case of Entrusted spells) as well as tracking who casted them (since the caster affects potency too as long as it's not an Entrusted spell). Geo- spells are pegged to the caster since they cannot ever be "owned" by another player. When a GEO buff appears on a player, we can look up the previous actions taken and determine who casted it, and therefore its potency.
+* Sambas are not detected as buffs, but can be detected based on the spike animation when you perform a melee attack. It is then tracked in a special table called `samba` which tracks the expiration timestamp of the effect based on the time of your melee attack that gained you the buff. It remains tracked until HasteInfo has to report haste values. At that point, it is determined if the buff is expired or not. Alternatively, disengaging from a mob or performing a melee attack that lacks the animation will also clear the tracked samba effect.
+* Bard songs are annoying in the sense that buff IDs are not specific for individual songs. All marches have the same buff ID (214), and simply appear that you have multiple of the same buff. This is the only situation where you can have multiple buff IDs active at the same time (at least as far as haste-related buffs go). For this reason, active bard songs are maintained separately from the other buffs because it doesn't fit the logic used for all other buffs.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO
@@ -108,11 +105,14 @@ ignored by HasteInfo.
 * Detect zone change events for other players and call the `remove_zoned_effects()` function
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet)
 * Remove party members if they are not present in the party buff packet
-* Convert this to an addon
-  - Implement commands:
-    - Stop reporting
-    - Toggle UI visibility
-    - Reset UI position
+* Implement commands:
+  - Stop reporting
+  - Toggle UI visibility
+  - Show UI
+  - Hide UI
+  - Reset UI position
+  - Pause reports
+  - Unpause reports
 * Implement UI
   - Display current haste value
   - Display current DW value
@@ -124,3 +124,4 @@ ignored by HasteInfo.
   - Weakness (-1024/1024)
   - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
+* If an action is taken the primary player that overrides a buff already on the player, but the action packet is lost, we don't know exactly what action was taken. However, we receive buff durations along with the buff update packet, and this can be used to match with current buffs to determine if there was a change. We don't be able to tell exactly what the new buff is, but we can try to deduce it based on what the previous buff was or else use a smart default value.
