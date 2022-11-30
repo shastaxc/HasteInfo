@@ -1,4 +1,4 @@
--- Version 2022.NOV.29.003
+-- Version 2022.NOV.29.004
 -- Copyright © 2022, Shasta
 -- All rights reserved.
 
@@ -590,10 +590,10 @@ function hasteinfo.parse_action(act, type)
       if haste_effect.triggering_action:startswith('Indi-') then
         haste_effect.caster_id = caster.id
         haste_effect.target_id = target_member.id
-        hasteinfo.indi_active[target_member.id] = haste_effect
+        hasteinfo.add_indi_effect(haste_effect)
       elseif haste_effect.triggering_action:startswith('Geo-') then
         haste_effect.caster_id = caster.id
-        hasteinfo.geo_active[caster.id] = haste_effect
+        hasteinfo.add_geo_effect(haste_effect)
       end
 
       hasteinfo.add_haste_effect(target_member, haste_effect)
@@ -691,35 +691,60 @@ function hasteinfo.is_samba_expired(member)
 end
 
 function hasteinfo.add_haste_effect(member, haste_effect)
-  if not member or not haste_effect then return end
+  if not member or not haste_effect or not member.haste_effects then return end
   if not haste_effect.potency then
     print('Missing potency on haste_effect: '..haste_effect.triggering_action)
     return
   end
 
-  if member.haste_effects then
-    -- Even if buff_id is already present, this could be a different action that provides the same buff_id but
-    -- potentially different potency, so track this newer haste_effect instead.
-    member.haste_effects[haste_effect.buff_id] = haste_effect
-  end
+  -- Even if buff_id is already present, this could be a different action that provides the same buff_id but
+  -- potentially different potency, so track this newer haste_effect instead.
+  member.haste_effects[haste_effect.buff_id] = haste_effect
+end
+
+function hasteinfo.remove_haste_effect(member, buff_id)
+  if not member or not buff_id or not member.haste_effects or not member.haste_effects[buff_id] then return end
+
+  member.haste_effects[buff_id] = nil
+end
+
+function hasteinfo.add_indi_effect(effect)
+  if not effect then return end
+
+  hasteinfo.indi_active[effect.target_id] = effect
+end
+
+function hasteinfo.remove_indi_effect(target_id)
+  if not target_id and type(target_id) ~= 'number' then return end
+  
+  hasteinfo.indi_active[target_id] = nil
+end
+
+function hasteinfo.add_geo_effect(effect)
+  if not effect then return end
+  
+  hasteinfo.geo_active[effect.caster_id] = effect
+end
+
+function hasteinfo.remove_geo_effect(caster_id)
+  if not target_id and type(target_id) ~= 'number' then return end
+  
+  hasteinfo.geo_active[caster_id] = nil
 end
 
 -- Remove haste effects that don't carry through zoning, and their corresponding buffs
 function hasteinfo.remove_zoned_effects(member)
   for effect in member.haste_effects:it() do
     if not effect.persists_thru_zoning then
-      member.haste_effects[effect.buff_id] = nil
+      hasteinfo.remove_haste_effect(member, effect.buff_id)
     end
   end
   
   -- If player had an Indi spell on them, stop tracking it
-  if hasteinfo.indi_active[member.id] then
-    hasteinfo.indi_active[member.id] = nil
-  end
+  hasteinfo.remove_indi_effect(member.id)
+
   -- If player had casted a Geo spell, stop tracking it
-  if hasteinfo.geo_active[member.id] then
-    hasteinfo.geo_active[member.id] = nil
-  end
+  hasteinfo.remove_geo_effect(member.id)
 end
 
 function hasteinfo.update_samba(member, is_samba_active)
@@ -750,6 +775,15 @@ function hasteinfo.update_samba(member, is_samba_active)
     ['expiration'] = hasteinfo.now() + hasteinfo.SAMBA_DURATION,
     ['potency'] = potency,
   }
+end
+
+function hasteinfo.reset_member(member)
+  if member then
+    member.samba = {}
+    member.songs = T{}
+    member.haste_effects = T{}
+    member.buffs = L{}
+  end
 end
 
 -- Check if user is wearing final upgrade of Apocalypse weapon
@@ -835,13 +869,6 @@ function hasteinfo.deduce_haste_effects(member, new_buffs)
         hasteinfo.add_haste_effect(member, haste_effect)
       end
     end
-  end
-end
-
-function hasteinfo.reset_member(member)
-  if member then
-    member.haste_effects = T{}
-    member.buffs = L{}
   end
 end
 
@@ -1109,14 +1136,12 @@ function hasteinfo.reconcile_buff_update(member, new_buffs)
     -- See if there is a corresponding haste effect on player
     local haste_effect = member.haste_effects[buff.id]
     if haste_effect then -- Remove haste effect
-      member.haste_effects[buff.id] = nil
+      hasteinfo.remove_haste_effect(member, buff.id)
     end
 
     -- If lost buff is Colure Active, and this player was tracked as an indi target, remove from indi table
     if buff.id == hasteinfo.COLURE_ACTIVE_ID then
-      if hasteinfo.indi_active[member.id] then
-        hasteinfo.indi_active[member.id] = nil
-      end
+      hasteinfo.remove_indi_effect(member.id)
     end
   end
 
@@ -1236,6 +1261,7 @@ end)
 -- Idle, Engaged, Resting, Dead, Zoning
 windower.raw_register_event('status change', function(new_status_id, old_status_id)
   -- In any of these status change scenarios, haste samba status should be reset
+  -- Other effects will update from the buff update packet
   local member = hasteinfo.get_member(player.id, player.name)
   if member and member.samba then
     hasteinfo.update_samba(member, false)
@@ -1247,8 +1273,6 @@ windower.raw_register_event('outgoing chunk', function(id, data, modified, injec
   if id == 0x100 then -- Sending job change command to server
     local member = hasteinfo.get_member(player.id, player.name)
     hasteinfo.reset_member(member)
-    -- TODO: Write player data to file, to retrieve after library reloads. Cannot prevent
-    -- gearswap from reloading the whole addon when changing jobs. That's a built-in function.
   end
 end)
 
