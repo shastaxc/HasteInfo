@@ -27,8 +27,8 @@ haste calculations that I'm attempting to solve with HasteInfo:
   - Specifically, there seems to be some occasions where Honor March can get GearInfo into a state where
   it just spams error messages, and cannot be fixed without a full addon reload.
 * Performance
-  - GearInfo recalculates stats 2 times per second or more if you have higher than 30 fps because its update loop is tied to the prerender loop
-  - HasteInfo recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand too.
+  - GearInfo recalculates stats 2 times per second, or more if you have higher than 30 fps because its update loop is tied to the prerender loop
+  - HasteInfo recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand in case someone wants it outside of the normal reporting cycle.
 
 ## Installation/Usage
 
