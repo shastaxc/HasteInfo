@@ -114,3 +114,4 @@ ignored by HasteInfo.
   - Weakness (-1024/1024)
   - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
+* Update dw on job change

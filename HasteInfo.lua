@@ -1001,32 +1001,35 @@ function read_dw_traits()
   local me = get_member(player.id, player.name, true)
   if not me then return end
 
+  local dw_tier = 0
+  dw_tier = math.max(dw_tier, get_dw_tier_for_job(me, true))
+  dw_tier = math.max(dw_tier, get_dw_tier_for_job(me, false))
+  
+  stats.dual_wield.traits = dw_tiers[dw_tier]
+end
+
+function get_dw_tier_for_job(member, is_main)
+  if not member then return 0 end
+  local job = is_main and member.main or member.sub
+  local job_lv = is_main and member.main_lv or member.sub_lv
+  if not job or not job_lv then return 0 end
+
   -- Determine DW tier
   local dw_tier
-  if S{'NIN', 'DNC', 'THF'}:contains(me.main) then
+  if S{'NIN', 'DNC', 'THF'}:contains(job) then
     -- Determine dual wield based on job, level, and job points
-    local dw_table = dw_jobs[me.main]
+    local dw_table = dw_jobs[job]
     -- Determine if job point gift tier applies
-    local jp_spent = player.job_points[me.main:lower()].jp_spent
-    for jp,dw in pairs(dw_table.jp) do
-      if jp_spent >= jp then
-        dw_tier = dw
+    local jp_spent = is_main and player.job_points[job:lower()].jp_spent or 0
+    for k,entry in ipairs(dw_table) do
+      if job_lv >= entry.lv and jp_spent >= entry.jp_spent then
+        dw_tier = entry.tier
       else
         break
       end
     end
-    if not dw_tier then
-      -- If no jp gift tier, check level tiers
-      for lv,dw in pairs(dw_table.lv) do
-        if me.main_lv >= lv then
-          dw_tier = dw
-        else
-          break
-        end
-      end
-      dw_tier = dw_tier or 0
-    end
-  elseif me.main == 'BLU' then
+    dw_tier = dw_tier or 0
+  elseif job == 'BLU' then
     -- Determine dual wield based on equipped BLU spells
     local spell_ids = windower.ffxi.get_mjob_data().spells
     local trait_points = 0
@@ -1041,8 +1044,7 @@ function read_dw_traits()
   else
     dw_tier = 0
   end
-  
-  stats.dual_wield.traits = dw_tiers[dw_tier]
+  return dw_tier
 end
 
 

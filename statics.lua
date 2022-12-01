@@ -395,42 +395,24 @@ dw_tiers = {
 
 dw_jobs = {
   ['NIN'] = {
-    ['lv'] = {
-      -- [Lv] = tier
-      [10] = 1,
-      [25] = 2,
-      [45] = 3,
-      [65] = 4,
-      [85] = 5,
-    },
-    ['jp'] = {
-      -- [jp] = DW total
-    }
+    {tier=1, lv=10, jp_spent=0},
+    {tier=2, lv=25, jp_spent=0},
+    {tier=3, lv=45, jp_spent=0},
+    {tier=4, lv=65, jp_spent=0},
+    {tier=5, lv=85, jp_spent=0},
   },
   ['DNC'] = {
-    ['lv'] = {
-      -- [Lv] = DW total
-      [20] = 1,
-      [40] = 2,
-      [60] = 3,
-      [80] = 4,
-    },
-    ['jp'] = {
-      -- [jp] = DW total
-      [550] = 5,
-    }
+    {tier=1, lv=20, jp_spent=0},
+    {tier=2, lv=40, jp_spent=0},
+    {tier=3, lv=60, jp_spent=0},
+    {tier=4, lv=80, jp_spent=0},
+    {tier=5, lv=99, jp_spent=550},
   },
   ['THF'] = {
-    ['lv'] = {
-      -- [Lv] = DW total
-      [83] = 1,
-      [90] = 2,
-      [98] = 3,
-    },
-    ['jp'] = {
-      -- [jp] = DW total
-      [550] = 4,
-    }
+    {tier=1, lv=83, jp_spent=0},
+    {tier=2, lv=90, jp_spent=0},
+    {tier=3, lv=98, jp_spent=0},
+    {tier=4, lv=99, jp_spent=550}
   },
 }
 
