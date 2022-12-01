@@ -35,7 +35,7 @@
 
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.1'
+_addon.version = '0.0.2'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -86,23 +86,11 @@ function init()
     end
   end
   
-  -- Try to determine current haste effects based on buff icons
-  local current_buffs = windower.ffxi.get_player().buffs
-  current_buffs = format_buffs(current_buffs)
-  -- Filter for only buffs relevant to haste
-  current_buffs = current_buffs:filter(function(buff)
-    return HASTE_BUFF_IDS:contains(buff.id)
-        or SLOW_DEBUFF_IDS:contains(buff.id)
-        or OTHER_RELEVANT_BUFFS:contains(buff.id)
-  end)
-  -- Add received_at param
-  current_buffs = current_buffs:map(function(buff)
-    buff.received_at = now()
-    return buff
-  end)
-  deduce_haste_effects(me, current_buffs)
-  me.buffs = current_buffs
-
+  -- Reset self buffs
+  reset_self_buffs()
+  
+  read_dw_traits()
+  report()
 end
 
 function load_settings()
@@ -355,7 +343,7 @@ function parse_buffs(data)
 end
 
 function is_samba_expired(member)
-  local is_expired = false
+  local is_expired = true
 
   if member.samba and member.samba.expiration then
     is_expired = member.samba.expiration >= now()
@@ -463,6 +451,27 @@ function update_samba(member, is_samba_active)
   end
 end
 
+function reset_self_buffs()
+  local me = get_member(player.id, player.name, true)
+
+  -- Try to determine current haste effects based on buff icons
+  local current_buffs = windower.ffxi.get_player().buffs
+  current_buffs = format_buffs(current_buffs)
+  -- Filter for only buffs relevant to haste
+  current_buffs = current_buffs:filter(function(buff)
+    return HASTE_BUFF_IDS:contains(buff.id)
+        or SLOW_DEBUFF_IDS:contains(buff.id)
+        or OTHER_RELEVANT_BUFFS:contains(buff.id)
+  end)
+  -- Add received_at param
+  current_buffs = current_buffs:map(function(buff)
+    buff.received_at = now()
+    return buff
+  end)
+  deduce_haste_effects(me, current_buffs)
+  me.buffs = current_buffs
+end
+
 function reset_member(member)
   if member then
     remove_indi_effect(member.id)
@@ -472,6 +481,12 @@ function reset_member(member)
     member.songs = T{}
     member.haste_effects = T{}
     member.buffs = L{}
+
+    if member.id == player.id then
+      reset_self_buffs()
+      read_dw_traits()
+    end
+    
     report()
   end
 end
@@ -791,7 +806,9 @@ function reconcile_buff_update(member, new_buffs)
 
   for new_buff in new_buffs:it() do
     for old_buff in old_buffs:it() do
-      -- TODO: Not enough to pair by ID. If expirations significantly changed, potency may have changed too. Might have just lost an action packet.
+      -- If expirations significantly changed, potency may have changed too. Might have just lost an action packet.
+      -- However, there is no way to deduce what the new action was that refreshed the buff, so just assume
+      -- that it stayed the same.
       if new_buff.id == old_buff.id and not old_buff.paired then
         new_buff.paired = true
         old_buff.paired = true
@@ -846,15 +863,60 @@ end
 
 function toggle_ui()
   local is_vis = ui:visible()
+  -- If we're changing it to be visible, we need to update the UI text first
+  if not is_vis then
+    update_ui_text(true)
+  end
+  
+  -- Toggle visibility
   ui:visible(not is_vis)
 end
 
 function show_ui()
-  ui:show()
+  local is_vis = ui:visible()
+  -- If we're changing it to be visible, we need to update the UI text first
+  if not is_vis then
+    update_ui_text(true)
+    ui:show()
+  end
 end
 
 function hide_ui()
   ui:hide()
+end
+
+function update_ui_text(force_update)
+  -- No point in setting UI text if it's not visible
+  if not force_update and not ui:visible() then return end
+
+  -- Get stats to display and report
+  local dw_needed = stats.dual_wield.actual_needed
+  local total_haste = settings.show_fractions and stats.haste.total.actual.fraction or string.format("%.1f", stats.haste.total.actual.percent)
+  local perc = settings.show_fractions and nil or '%'
+  local dw_traits = ''
+  local ma_haste = ''
+  local ja_haste = ''
+  local eq_haste = ''
+
+  if settings.show_haste_details then
+    dw_traits = stats.dual_wield.traits
+    ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format("%.1f", stats.haste.ma.actual.percent)
+    ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format("%.1f", stats.haste.ja.actual.percent)
+    eq_haste = settings.show_fractions and stats.haste.eq.actual.fraction or string.format("%.1f", stats.haste.eq.actual.percent)
+  end
+
+  -- Compose new text string
+  local str = ''
+  str = str..'DW Needed: '..dw_needed
+  if settings.show_haste_details then
+  str = str..' ('..dw_traits..' from traits)'
+  end
+  str = str..' | Haste: '..total_haste..perc
+  if settings.show_haste_details then
+    str = str..' Total ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ)'
+  end
+
+  ui:text(str)
 end
 
 
@@ -865,12 +927,12 @@ end
 -- Report latest stats
 function report(skip_recalculate_stats)
   if reports_paused then return end
-
   if not skip_recalculate_stats then
     calculate_stats()
   end
 
   -- Update UI
+  update_ui_text()
 
   -- Send report to GearSwap
   local dw_needed = stats.dual_wield.actual_needed
@@ -882,7 +944,9 @@ function calculate_stats()
   local me = get_member(player.id, player.name, true)
   
   -- Reset stats
-  stats = default_stats:copy(true)
+  old_dw_stats = table.copy(stats['dual_wield'], true)
+  stats['haste'] = table.copy(default_stats['haste'], true)
+  stats['dual_wield'] = old_dw_stats
 
   -- Sum potency of all effects by category (ma, ja, debuff) in uncapped summation
   for effect in me.haste_effects:it() do
@@ -893,13 +957,13 @@ function calculate_stats()
   -- Add songs potency to ma category
   for song in me.songs:it() do
     -- Add potency to stats
-    stats['haste']['ma']['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + song.potency
+    stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + song.potency
   end
 
   -- Add samba potency to ja category
   if not is_samba_expired(me) then
     -- Add potency to stats
-    stats['haste']['ja']['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + me.samba.potency
+    stats['haste']['ja']['uncapped']['fraction'] = stats['haste']['ja']['uncapped']['fraction'] + me.samba.potency
   end
 
   -- Even without category caps, there is a hard limit for what the server will calculate (I think)
@@ -911,7 +975,7 @@ function calculate_stats()
   stats['haste']['total']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction']
                                                   + stats['haste']['ja']['uncapped']['fraction']
                                                   + stats['haste']['eq']['uncapped']['fraction']
-                                                  - stats['haste']['debuff']['uncapped']['fraction']
+                                                  - stats['haste']['debuffs']['uncapped']['fraction']
 
   -- Calculate percent values
   for haste_cat, t in pairs(stats['haste']) do
@@ -919,8 +983,6 @@ function calculate_stats()
     local uncapped_frac = t['uncapped']['fraction']
     -- Calculate fraction as percentage
     local uncapped_perc = uncapped_frac / 1024 * 100 or 0
-    -- Use string formatting to round insignificant decimals
-    uncapped_perc = tonumber(string.format("%.1f", uncapped_perc)) or 0
     t['uncapped']['percent'] = uncapped_perc
     
     -- Calculate actual values (include caps)
@@ -930,8 +992,57 @@ function calculate_stats()
     t['actual']['percent'] = capped_perc
   end
 
-  -- Determine dual wield stats
+  -- Determine dual wield needed
+  stats.dual_wield.total_needed = math.max(math.ceil((1 - (0.2 / ( (1024 - stats.haste.total.actual.fraction) / 1024))) * 100), 0)
+  stats.dual_wield.actual_needed = stats.dual_wield.total_needed - stats.dual_wield.traits
+end
 
+function read_dw_traits()
+  local me = get_member(player.id, player.name, true)
+  if not me then return end
+
+  -- Determine DW tier
+  local dw_tier
+  if S{'NIN', 'DNC', 'THF'}:contains(me.main) then
+    -- Determine dual wield based on job, level, and job points
+    local dw_table = dw_jobs[me.main]
+    -- Determine if job point gift tier applies
+    local jp_spent = player.job_points[me.main:lower()].jp_spent
+    for jp,dw in pairs(dw_table.jp) do
+      if jp_spent >= jp then
+        dw_tier = dw
+      else
+        break
+      end
+    end
+    if not dw_tier then
+      -- If no jp gift tier, check level tiers
+      for lv,dw in pairs(dw_table.lv) do
+        if me.main_lv >= lv then
+          dw_tier = dw
+        else
+          break
+        end
+      end
+      dw_tier = dw_tier or 0
+    end
+  elseif me.main == 'BLU' then
+    -- Determine dual wield based on equipped BLU spells
+    local spell_ids = windower.ffxi.get_mjob_data().spells
+    local trait_points = 0
+    for k,spell_id in ipairs(spell_ids) do
+      -- Check if equipped spell is a dw spell
+      local dw_spell = dw_blu_spells[spell_id]
+      if dw_spell then
+        trait_points = trait_points + dw_spell.trait_points
+      end
+    end
+    dw_tier = math.floor(trait_points / 8)
+  else
+    dw_tier = 0
+  end
+  
+  stats.dual_wield.traits = dw_tiers[dw_tier]
 end
 
 
@@ -1116,15 +1227,25 @@ windower.register_event('addon command', function(cmd, ...)
       settings:save()
       ui:pos(0, 0)
     elseif 'party' == cmd then
-      -- TODO: toggle party details in UI
+      -- TODO: Toggle party details in UI
     elseif 'details' == cmd then
-      -- TODO: toggle main player's haste details in UI
+      -- Toggle main player's haste details in UI
+      settings.show_haste_details = not settings.show_haste_details
+      settings:save()
+      update_ui_text()
+      if S{'fractions', 'fraction', 'frac', 'f'}:contains(args[1]) then
+        settings.show_fractions = true
+      elseif S{'percentage', 'percentages', 'percent', 'perc', 'p'}:contains(args[1]) then
+        settings.show_fractions = false
+      end 
     elseif 'report' == cmd then
-      report()
+      report(true)
     elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
-      -- TODO: pause updating UI and sending reports, but keep updating tracked buffs and haste effects
+      -- Pause updating UI and sending reports, but keep updating tracked buffs and haste effects
+      reports_paused = true
     elseif S{'unpause', 'play', 'resume', 'continue', 'start', 'on', 'enable'}:contains(cmd) then
-      -- TODO: continue updating UI and sending reports
+      -- Continue updating UI and sending reports
+      reports_paused = false
     elseif 'test' == cmd then
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
@@ -1148,7 +1269,9 @@ windower.register_event('addon command', function(cmd, ...)
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi hide \'' .. chat_white .. ': Hide UI')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi resetpos \'' .. chat_white .. ': Reset position of UI to default')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi party \'' .. chat_white .. ': Toggle party details in UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi details \'' .. chat_white .. ': Toggle your own haste details in UI')
+      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi details \'' .. chat_white .. ': Toggle your own haste details in UI (takes optional subcommands')
+			windower.add_to_chat(6, chat_l_blue..	'         fraction' .. chat_white .. 'Enables display of haste values in fractions')
+			windower.add_to_chat(6, chat_l_blue..	'         percent' .. chat_white .. 'Enables display of haste values in percentages')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi pause \'' .. chat_white .. ': Pause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi play \'' .. chat_white .. ': Unpause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi debug \'' .. chat_white .. ': Toggle debug mode')

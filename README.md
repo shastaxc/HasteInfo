@@ -97,8 +97,7 @@ ignored by HasteInfo.
 
 ## TODO
 * Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
-* Enhance initialization
-  - Determine DW traits
+* Hook into job change event and blu spell equip event to recalculate dual wield.
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
 * Account for Marcato, Soul Voice potency
@@ -106,15 +105,8 @@ ignored by HasteInfo.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet)
 * Remove party members if they are not present in the party buff packet
 * Implement commands:
-  - Stop reporting
-  - Pause reports
-  - Unpause reports
   - Toggle party details UI
-  - Toggle haste details UI
 * Implement UI
-  - Display current haste value
-  - Display current DW value
-  - Option to display haste effects breakdown
   - Option to display tracked party members and their jobs
 * Account for debuff effects:
   - Battlefield Elegy (-256/1024)
@@ -122,4 +114,3 @@ ignored by HasteInfo.
   - Weakness (-1024/1024)
   - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
-* If an action is taken the primary player that overrides a buff already on the player, but the action packet is lost, we don't know exactly what action was taken. However, we receive buff durations along with the buff update packet, and this can be used to match with current buffs to determine if there was a change. We don't be able to tell exactly what the new buff is, but we can try to deduce it based on what the previous buff was or else use a smart default value.

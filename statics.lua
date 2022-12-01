@@ -1,5 +1,7 @@
 player = windower.ffxi.get_player()
 
+reports_paused = false
+
 -- Offset of system clock vs server clock, to be determined by packets received from the server
 clock_offset = 0
 
@@ -62,7 +64,6 @@ default_stats = T{
   ['dual_wield'] = {
     ['total_needed'] = 74,  -- Ignores all sources of dual wield already possessed
     ['traits'] = 0, -- DW possessed from traits
-    ['buffs'] = 0, -- DW increased from buffs
     ['actual_needed'] = 74, -- DW needed after traits and buffs accounted for
   }
 }
@@ -111,6 +112,8 @@ geo_active = T{
 -- Default settings
 defaults = {
   show_ui=false,
+  show_fractions = false,
+  show_haste_details = false,
   display={
     text={
       size=10,
@@ -378,4 +381,65 @@ ACTION_TYPE = T{
   ['GEOMANCY'] = 'Geomancy',
   ['SELF_CATASTROPHE'] = 'Self Catastrophe',
   ['PET'] = 'Pet',
+}
+
+dw_tiers = {
+  [0] = 0,
+  [1] = 10,
+  [2] = 15,
+  [3] = 25,
+  [4] = 30,
+  [5] = 35,
+  [6] = 40,
+}
+
+dw_jobs = {
+  ['NIN'] = {
+    ['lv'] = {
+      -- [Lv] = tier
+      [10] = 1,
+      [25] = 2,
+      [45] = 3,
+      [65] = 4,
+      [85] = 5,
+    },
+    ['jp'] = {
+      -- [jp] = DW total
+    }
+  },
+  ['DNC'] = {
+    ['lv'] = {
+      -- [Lv] = DW total
+      [20] = 1,
+      [40] = 2,
+      [60] = 3,
+      [80] = 4,
+    },
+    ['jp'] = {
+      -- [jp] = DW total
+      [550] = 5,
+    }
+  },
+  ['THF'] = {
+    ['lv'] = {
+      -- [Lv] = DW total
+      [83] = 1,
+      [90] = 2,
+      [98] = 3,
+    },
+    ['jp'] = {
+      -- [jp] = DW total
+      [550] = 4,
+    }
+  },
+}
+
+dw_blu_spells = {
+  [657] = {id=657,en="Blazing Bound",ja="ブレーズバウンド",trait_points=4},
+  [661] = {id=661,en="Animating Wail",ja="鯨波",trait_points=4},
+  [673] = {id=673,en="Quad. Continuum",ja="四連突",trait_points=4},
+  [682] = {id=682,en="Delta Thrust",ja="デルタスラスト",trait_points=4},
+  [686] = {id=686,en="Mortal Ray",ja="モータルレイ",trait_points=4},
+  [699] = {id=699,en="Barbed Crescent",ja="偃月刃",trait_points=4},
+  [715] = {id=715,en="Molting Plumage",ja="モルトプルメイジ",trait_points=8},
 }
