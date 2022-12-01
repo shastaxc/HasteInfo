@@ -1,5 +1,113 @@
 player = windower.ffxi.get_player()
 
+-- Offset of system clock vs server clock, to be determined by packets received from the server
+clock_offset = 0
+
+-- Stats includes total haste, and haste by category. 'Actual' is the real amount of
+-- haste, and 'uncapped' is the full amount that all buffs would add up to if there was
+-- no cap.
+default_stats = T{
+  ['haste'] = {
+    ['ma'] = {
+      ['actual'] = {
+        ['percent'] = 0,
+        ['fraction'] = 0
+      },
+      ['uncapped'] = {
+        ['percent'] = 0,
+        ['fraction'] = 0
+      },
+    },
+    ['ja'] = {
+      ['actual'] = {
+        ['percent'] = 0,
+        ['fraction'] = 0
+      },
+      ['uncapped'] = {
+        ['percent'] = 0,
+        ['fraction'] = 0
+      },
+    },
+    ['eq'] = {
+      ['actual'] = {
+        ['percent'] = 25,
+        ['fraction'] = 256
+      },
+      ['uncapped'] = {
+        ['percent'] = 256,
+        ['fraction'] = 256
+      },
+    },
+    ['debuffs'] = {
+      ['actual'] = {
+        ['percent'] = 0,
+        ['fraction'] = 0
+      },
+      ['uncapped'] = {
+        ['percent'] = 0,
+        ['fraction'] = 0
+      },
+    },
+    ['total'] = {
+      ['actual'] = {
+        ['percent'] = 25,
+        ['fraction'] = 256
+      },
+      ['uncapped'] = {
+        ['percent'] = 25,
+        ['fraction'] = 256
+      },
+    },
+  },
+  ['dual_wield'] = {
+    ['total_needed'] = 74,  -- Ignores all sources of dual wield already possessed
+    ['traits'] = 0, -- DW possessed from traits
+    ['buffs'] = 0, -- DW increased from buffs
+    ['actual_needed'] = 74, -- DW needed after traits and buffs accounted for
+  }
+}
+
+stats = default_stats:copy(true)
+
+players = T{ -- Track jobs and relevant buffs of party members
+  --[[
+  [id] = {id=num, name=str, main=str, main_lv=num, sub=str, sub_lv=num, samba=table, songs=table, haste_effects=table, buffs=table}
+  songs = T{
+    [triggering_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, received_at=num, expiration=num}
+  }
+  samba = {
+    expiration=num, -- seconds since last samba effect detected; has decimals that can track to 1/100 of a second
+    potency=num,
+  }
+  haste_effects = T{
+    [buff_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma|ja, potency=num}
+  }
+  buffs = {
+    [1]=num
+    ...
+    [32]=num
+  }
+
+  Ex:
+  [123456] = {id=123456, name='Joe', main='GEO', main_lv=99, sub='RDM', sub_lv=99, samba={expiration=12345, potency=51}, songs={}, haste_effects={}, buffs={}}
+  ]]
+}
+
+-- Track Indi- actions performed on party members
+-- Items are added when an Indi- spell is casted
+-- Items are removed when a Colure Active buff disappears from a party member
+indi_active = T{
+  -- same as haste effects + some fields
+  -- [target_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, caster_id=num, target_id=num}
+}
+-- Track Geo- actions performed on party members
+-- Items are added when a Geo- spell is casted
+-- Items are removed when caster casts a new Geo- spell
+geo_active = T{
+  -- same as haste effects + some fields
+  -- [caster_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, caster_id=num}
+}
+
 -- Default settings
 defaults = {
   show_ui=false,
@@ -47,6 +155,10 @@ haste_caps = {
     ['percent'] = 25,
     ['fraction'] = 256
   },
+  ['debuffs'] = {
+    ['percent'] = 100,
+    ['fraction'] = 1024
+  },
 }
 
 
@@ -59,9 +171,9 @@ haste_triggers = T{
     [478] = {triggering_action='Embrava', triggering_id=478, buff_name='Embrava', buff_id=228, haste_category='ma', trigger_category='Magic', trigger_sub_category='WhiteMagic', persists_thru_zoning=false, potency_base=266},
     [771] = {triggering_action='Indi-Haste', triggering_id=771, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency_per_geomancy=12},
     [801] = {triggering_action='Geo-Haste', triggering_id=801, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency_per_geomancy=12},
-    [417] = {triggering_action='Honor March', triggering_id=417, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=126, potency_per_song_point=12, song_cap=4},
-    [420] = {triggering_action='Victory March', triggering_id=420, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=163, potency_per_song_point=16, song_cap=8},
-    [419] = {triggering_action='Advancing March', triggering_id=419, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=108, potency_per_song_point=11, song_cap=8},
+    [417] = {triggering_action='Honor March', triggering_id=417, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=126, song_cap=4},
+    [420] = {triggering_action='Victory March', triggering_id=420, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=163, song_cap=8},
+    [419] = {triggering_action='Advancing March', triggering_id=419, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=108, song_cap=8},
     [530] = {triggering_action='Refueling', triggering_id=530, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=102}, -- Exact potency unknown
     [710] = {triggering_action='Erratic Flutter', triggering_id=710, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=307},
     [661] = {triggering_action='Animating Wail', triggering_id=661, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=150}, -- Exact potency unknown

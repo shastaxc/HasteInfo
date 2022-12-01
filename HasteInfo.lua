@@ -64,101 +64,6 @@ function init()
 
   load_settings()
 
-  -- Instantiated variables for storing values and states
-  -- Offset of system clock vs server clock, to be determined by packets received from the server
-  clock_offset = 0
-
-  -- Stats includes total haste, and haste by category. 'Actual' is the real amount of
-  -- haste, and 'uncapped' is the full amount that all buffs would add up to if there was
-  -- no cap.
-  stats = T{
-    ['haste_ma'] = {
-      ['actual'] = {
-        ['percent'] = 0,
-        ['fraction'] = 0
-      },
-      ['uncapped'] = {
-        ['percent'] = 0,
-        ['fraction'] = 0
-      },
-    },
-    ['haste_ja'] = {
-      ['actual'] = {
-        ['percent'] = 0,
-        ['fraction'] = 0
-      },
-      ['uncapped'] = {
-        ['percent'] = 0,
-        ['fraction'] = 0
-      },
-    },
-    ['haste_eq'] = {
-      ['actual'] = {
-        ['percent'] = 25,
-        ['fraction'] = 256
-      },
-      ['uncapped'] = {
-        ['percent'] = 256,
-        ['fraction'] = 256
-      },
-    },
-    ['haste_total'] = {
-      ['actual'] = {
-        ['percent'] = 25,
-        ['fraction'] = 256
-      },
-      ['uncapped'] = {
-        ['percent'] = 25,
-        ['fraction'] = 256
-      },
-    },
-    ['dual_wield'] = {
-      ['total_needed'] = 74,  -- Ignores all sources of dual wield already possessed
-      ['traits'] = 0, -- DW possessed from traits
-      ['buffs'] = 0, -- DW increased from buffs
-      ['actual_needed'] = 74, -- DW needed after traits and buffs accounted for
-    }
-  }
-
-  players = T{ -- Track jobs and relevant buffs of party members
-    --[[
-    [id] = {id=num, name=str, main=str, main_lv=num, sub=str, sub_lv=num, samba=table, songs=table, haste_effects=table, buffs=table}
-    songs = T{
-      [triggering_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, received_at=num, expiration=num}
-    }
-    samba = {
-      expiration=num, -- seconds since last samba effect detected; has decimals that can track to 1/100 of a second
-      potency=num,
-    }
-    haste_effects = T{
-      [buff_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma|ja, potency=num}
-    }
-    buffs = {
-      [1]=num
-      ...
-      [32]=num
-    }
-
-    Ex:
-    [123456] = {id=123456, name='Joe', main='GEO', main_lv=99, sub='RDM', sub_lv=99, samba={expiration=12345, potency=51}, songs={}, haste_effects={}, buffs={}}
-    ]]
-  }
-
-  -- Track Indi- actions performed on party members
-  -- Items are added when an Indi- spell is casted
-  -- Items are removed when a Colure Active buff disappears from a party member
-  indi_active = T{
-    -- same as haste effects + some fields
-    -- [target_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, caster_id=num, target_id=num}
-  }
-  -- Track Geo- actions performed on party members
-  -- Items are added when a Geo- spell is casted
-  -- Items are removed when caster casts a new Geo- spell
-  geo_active = T{
-    -- same as haste effects + some fields
-    -- [caster_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, caster_id=num}
-  }
-  
   -- Add primary user
   local me = add_member(player.id, player.name)
   -- Add job info
@@ -210,22 +115,6 @@ function load_settings()
   -- Set UI visibility based on saved setting
   ui:visible(settings.show_ui)
 end
-
--------------------------------------------------------------------------------
--- UI Functions
--------------------------------------------------------------------------------
-
-function toggle_ui()
-  local is_vis = ui:visible()
-  ui:visible(not is_vis)
-end
-function show_ui()
-  ui:show()
-end
-function hide_ui()
-  ui:hide()
-end
-
 
 -------------------------------------------------------------------------------
 -- Party/Haste Functions
@@ -345,8 +234,8 @@ function parse_action(act, type)
             song_bonus = haste_effect.song_cap
           end
     
-          -- Determine potency
-          haste_effect.potency = haste_effect.potency_base + (haste_effect.potency_per_song_point * song_bonus)
+          -- Determine potency (each song bonus point adds 10% of base potency)
+          haste_effect.potency = math.floor(haste_effect.potency_base + (haste_effect.potency_base * 0.1 * song_bonus))
           haste_effect.received_at = now()
           target_member.songs[act.param] = haste_effect
         end
@@ -488,36 +377,42 @@ function add_haste_effect(member, haste_effect)
   -- Even if buff_id is already present, this could be a different action that provides the same buff_id but
   -- potentially different potency, so track this newer haste_effect instead.
   member.haste_effects[haste_effect.buff_id] = haste_effect
+  report()
 end
 
 function remove_haste_effect(member, buff_id)
   if not member or not buff_id or not member.haste_effects or not member.haste_effects[buff_id] then return end
 
   member.haste_effects[buff_id] = nil
+  report()
 end
 
 function add_indi_effect(effect)
   if not effect then return end
 
   indi_active[effect.target_id] = effect
+  report()
 end
 
 function remove_indi_effect(target_id)
   if not target_id and type(target_id) ~= 'number' then return end
   
   indi_active[target_id] = nil
+  report()
 end
 
 function add_geo_effect(effect)
   if not effect then return end
   
   geo_active[effect.caster_id] = effect
+  report()
 end
 
 function remove_geo_effect(caster_id)
   if not target_id and type(target_id) ~= 'number' then return end
   
   geo_active[caster_id] = nil
+  report()
 end
 
 -- Remove haste effects that don't carry through zoning, and their corresponding buffs
@@ -537,40 +432,47 @@ end
 
 function update_samba(member, is_samba_active)
   if not member then return end
-  if not is_samba_active then
+  if member.samba and not is_samba_active then
     member.samba = {}
-  end
-  local potency = samba_stats.potency_base
-  -- Check if primary player is DNC
-  if player.main_job == 'DNC' then
-    potency = potency + (samba_stats.potency_per_merit * player.merits[samba_stats.merit_name])
-  else
-    -- Determine potency based on party jobs
-    local has_main_dnc
-    for member in players:it() do
-      if member.main == 'DNC' then
-        has_main_dnc = true
-        break
+    report()
+  elseif is_samba_active then
+    local potency = samba_stats.potency_base
+    -- Check if primary player is DNC
+    if player.main_job == 'DNC' then
+      potency = potency + (samba_stats.potency_per_merit * player.merits[samba_stats.merit_name])
+    else
+      -- Determine potency based on party jobs
+      local has_main_dnc
+      for member in players:it() do
+        if member.main == 'DNC' then
+          has_main_dnc = true
+          break
+        end
+      end
+  
+      if has_main_dnc then
+        potency = potency + (samba_stats.potency_per_merit * 5)
       end
     end
-
-    if has_main_dnc then
-      potency = potency + (samba_stats.potency_per_merit * 5)
-    end
+  
+    member.samba = {
+      ['expiration'] = now() + SAMBA_DURATION,
+      ['potency'] = potency,
+    }
+    report()
   end
-
-  member.samba = {
-    ['expiration'] = now() + SAMBA_DURATION,
-    ['potency'] = potency,
-  }
 end
 
 function reset_member(member)
   if member then
+    remove_indi_effect(member.id)
+    remove_geo_effect(member.id)
+
     member.samba = {}
     member.songs = T{}
     member.haste_effects = T{}
     member.buffs = L{}
+    report()
   end
 end
 
@@ -856,6 +758,8 @@ function update_songs(member, buffs)
         if not member.songs[assumed_song.triggering_id] then
           assumed_song.received_at = now()
           assumed_song.expiration = song.expiration
+          -- Set potency (assume max)
+          haste_effect.potency = math.floor(haste_effect.potency_base + (haste_effect.potency_base * 0.1 * haste_effect.song_cap))
           member.songs[assumed_song.triggering_id] = assumed_song
           break
         end
@@ -933,6 +837,101 @@ function reconcile_buff_update(member, new_buffs)
 
   -- Update buff list to new list
   member.buffs = new_buffs
+end
+
+
+-------------------------------------------------------------------------------
+-- UI Functions
+-------------------------------------------------------------------------------
+
+function toggle_ui()
+  local is_vis = ui:visible()
+  ui:visible(not is_vis)
+end
+
+function show_ui()
+  ui:show()
+end
+
+function hide_ui()
+  ui:hide()
+end
+
+
+-------------------------------------------------------------------------------
+-- Reporting functions
+-------------------------------------------------------------------------------
+
+-- Report latest stats
+function report(skip_recalculate_stats)
+  if reports_paused then return end
+
+  if not skip_recalculate_stats then
+    calculate_stats()
+  end
+
+  -- Update UI
+
+  -- Send report to GearSwap
+  local dw_needed = stats.dual_wield.actual_needed
+  windower.send_command('gs c hasteinfo '..dw_needed)
+end
+
+-- Calculate haste and dual wield stats
+function calculate_stats()
+  local me = get_member(player.id, player.name, true)
+  
+  -- Reset stats
+  stats = default_stats:copy(true)
+
+  -- Sum potency of all effects by category (ma, ja, debuff) in uncapped summation
+  for effect in me.haste_effects:it() do
+    -- Add potency to stats
+    stats['haste'][effect.haste_category]['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + effect.potency
+  end
+
+  -- Add songs potency to ma category
+  for song in me.songs:it() do
+    -- Add potency to stats
+    stats['haste']['ma']['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + song.potency
+  end
+
+  -- Add samba potency to ja category
+  if not is_samba_expired(me) then
+    -- Add potency to stats
+    stats['haste']['ja']['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + me.samba.potency
+  end
+
+  -- Even without category caps, there is a hard limit for what the server will calculate (I think)
+  for haste_cat, t in pairs(stats['haste']) do
+    t['uncapped']['fraction'] = math.min(t['uncapped']['fraction'], 1024)
+  end
+
+  -- Calculate total haste
+  stats['haste']['total']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction']
+                                                  + stats['haste']['ja']['uncapped']['fraction']
+                                                  + stats['haste']['eq']['uncapped']['fraction']
+                                                  - stats['haste']['debuff']['uncapped']['fraction']
+
+  -- Calculate percent values
+  for haste_cat, t in pairs(stats['haste']) do
+    -- Get uncapped fraction
+    local uncapped_frac = t['uncapped']['fraction']
+    -- Calculate fraction as percentage
+    local uncapped_perc = uncapped_frac / 1024 * 100 or 0
+    -- Use string formatting to round insignificant decimals
+    uncapped_perc = tonumber(string.format("%.1f", uncapped_perc)) or 0
+    t['uncapped']['percent'] = uncapped_perc
+    
+    -- Calculate actual values (include caps)
+    local capped_frac = math.min(uncapped_frac, haste_caps[haste_cat]['fraction'])
+    t['actual']['fraction'] = capped_frac
+    local capped_perc = math.min(uncapped_perc, haste_caps[haste_cat]['percent'])
+    t['actual']['percent'] = capped_perc
+  end
+
+  -- Determine dual wield stats
+
 end
 
 
@@ -1121,7 +1120,7 @@ windower.register_event('addon command', function(cmd, ...)
     elseif 'details' == cmd then
       -- TODO: toggle main player's haste details in UI
     elseif 'report' == cmd then
-      -- TODO: send latest report
+      report()
     elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
       -- TODO: pause updating UI and sending reports, but keep updating tracked buffs and haste effects
     elseif S{'unpause', 'play', 'resume', 'continue', 'start', 'on', 'enable'}:contains(cmd) then
