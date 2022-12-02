@@ -1045,8 +1045,13 @@ function calculate_stats()
   end
 
   -- Determine dual wield needed
-  stats.dual_wield.total_needed = math.max(math.ceil((1 - (0.2 / ( (1024 - stats.haste.total.actual.fraction) / 1024))) * 100), 0)
-  stats.dual_wield.actual_needed = stats.dual_wield.total_needed - stats.dual_wield.traits
+  if stats.dual_wield.traits == 0 then -- Unable to dual wield weapons at all
+    stats.dual_wield.total_needed = -1
+    stats.dual_wield.actual_needed = -1
+  else
+    stats.dual_wield.total_needed = math.max(math.ceil((1 - (0.2 / ( (1024 - stats.haste.total.actual.fraction) / 1024))) * 100), 0)
+    stats.dual_wield.actual_needed = stats.dual_wield.total_needed - stats.dual_wield.traits
+  end
 end
 
 function read_dw_traits(dontReport)
