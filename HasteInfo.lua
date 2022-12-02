@@ -35,7 +35,7 @@
 
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.2'
+_addon.version = '0.0.3'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -47,6 +47,7 @@ require('lists')
 require('sets')
 require('logger')
 require('strings')
+require('functions')
 
 res = require('resources')
 packets = require('packets')
@@ -89,8 +90,7 @@ function init()
   -- Reset self buffs
   reset_self_buffs()
   
-  read_dw_traits()
-  report()
+  read_dw_traits() -- Also reports
 end
 
 function load_settings()
@@ -156,20 +156,65 @@ function get_member(id, name, dontCreate)
   end
 end
 
+-- Detects if member is in the same zone as the main player
+function is_in_zone(member)
+  if member.id == player.id then return true end
+  return member.zone == 0
+end
+
 -- Packet should already be parsed
 function update_job_from_packet(member, packet)
+  local is_self = member.id == player.id
+
   local main_job = packet['Main job']
+  if not main_job then return end -- This can happen when changing jobs
+  main_job = res.jobs[main_job].ens
   local main_job_lv = packet['Main job level']
   local sub_job =  packet['Sub job']
+  sub_job = res.jobs[sub_job].ens
   local sub_job_lv = packet['Sub job level']
 
+  if main_job == 'NON' and not is_self then
+    -- Player is out of zone, assume their job has not changed
+    if is_in_zone(member) then
+      -- If player is anonymous, mark them as anonymous so the job
+      -- deduction algorithm can try to determine their job
+      member.is_anon = true
+    end
+  else
+    member.is_anon = false
+  end
+
+  local updated_job
   if main_job and main_job ~= 'NON' then
-    member.main = res.jobs[main_job].ens
-    member.main_lv = main_job_lv or 0
+    if main_job ~= member.main then
+      member.main = main_job
+      updated_job = true
+    end
+    if main_job_lv ~= member.main_lv then
+      member.main_lv = main_job_lv or 0
+      updated_job = true
+    end
   end
   if sub_job and sub_job ~= 'NON' then
-    member.sub = res.jobs[sub_job].ens
-    member.sub_lv = sub_job_lv or 0
+    if sub_job ~= member.sub then
+      member.sub = sub_job
+      updated_job = true
+    end
+    if sub_job_lv ~= member.sub_lv then
+      member.sub_lv = sub_job_lv or 0
+      updated_job = true
+    end
+  end
+
+  -- If job was updated and this is primary player, update relevant attributes
+  if updated_job and is_self then
+    player.main_job = main_job
+    player.main_job_level = main_job_lv
+    player.sub_job = sub_job
+    player.sub_job_level = sub_job_lv
+
+    read_dw_traits()
   end
 end
 
@@ -484,7 +529,7 @@ function reset_member(member)
 
     if member.id == player.id then
       reset_self_buffs()
-      read_dw_traits()
+      read_dw_traits(true)
     end
     
     report()
@@ -997,21 +1042,29 @@ function calculate_stats()
   stats.dual_wield.actual_needed = stats.dual_wield.total_needed - stats.dual_wield.traits
 end
 
-function read_dw_traits()
+function read_dw_traits(dontReport)
   local me = get_member(player.id, player.name, true)
   if not me then return end
-
+  -- print('reading dw traits')
   local dw_tier = 0
   dw_tier = math.max(dw_tier, get_dw_tier_for_job(me, true))
+  -- print('dw_tier = '..dw_tier)
   dw_tier = math.max(dw_tier, get_dw_tier_for_job(me, false))
+  -- print('dw_tier = '..dw_tier)
   
   stats.dual_wield.traits = dw_tiers[dw_tier]
+
+  -- Publish new stats
+  if not dontReport then
+    report()
+  end
 end
 
 function get_dw_tier_for_job(member, is_main)
-  if not member then return 0 end
-  local job = is_main and member.main or member.sub
-  local job_lv = is_main and member.main_lv or member.sub_lv
+  if not member or member.id ~= player.id then return 0 end
+
+  local job = is_main and player.main_job or player.sub_job
+  local job_lv = is_main and player.main_job_level or player.sub_job_level
   if not job or not job_lv then return 0 end
 
   -- Determine DW tier
@@ -1031,7 +1084,8 @@ function get_dw_tier_for_job(member, is_main)
     dw_tier = dw_tier or 0
   elseif job == 'BLU' then
     -- Determine dual wield based on equipped BLU spells
-    local spell_ids = windower.ffxi.get_mjob_data().spells
+    local spell_ids = is_main and windower.ffxi.get_mjob_data().spells or windower.ffxi.get_sjob_data().spells or {}
+    table.vprint(spell_ids)
     local trait_points = 0
     for k,spell_id in ipairs(spell_ids) do
       -- Check if equipped spell is a dw spell
@@ -1053,7 +1107,7 @@ end
 -------------------------------------------------------------------------------
 
 windower.register_event('incoming chunk', function(id, data, modified, injected, blocked)
-  if id == 0x076 then -- Party buffs update; does not include buffs on self
+  if id == 0x076 then -- Party buffs update; does not include self
     parse_buffs(data)
   elseif id == 0xDF then -- char update
     local packet = packets.parse('incoming', data)
@@ -1062,6 +1116,11 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       if playerId and playerId > 0 then
         -- print('PACKET: Char update for player ID: '..playerId)
         local member = get_member(playerId, nil)
+
+        -- Update zone info
+        local zone = packet['Zone']
+        member.zone = zone or member.zone
+        
         update_job_from_packet(member, packet)
       else
         print('Char update: ID not found.')
@@ -1075,15 +1134,16 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       if name and playerId and playerId > 0 then
         -- print('PACKET: Party member update for '..name)
         local member = get_member(playerId, name)
+
+        -- Update zone info
+        local zone = packet['Zone']
+        member.zone = zone or member.zone
+        
         update_job_from_packet(member, packet)
       else
         print('Party update: name and/or ID not found.')
       end
     end
-  elseif id == 0x01B then -- job info, comes in after changing jobs
-    local packet = packets.parse('incoming', data)
-    local member = get_member(player.id, player.name)
-    update_job_from_packet(member, packet)
   elseif id == 0x063 then -- Set Update packet
     -- Update buff durations. credit: Akaden, Buffed addon
     local order = data:unpack('H',0x05)
@@ -1122,9 +1182,61 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       local vana_time = p['Timestamp'] * 60 - math.floor(p['Time offset?'])
       clock_offset = math.floor(os.time() - vana_time % 0x100000000 / 60)
     end
+    local p = packets.parse('incoming', data)
+  elseif id == 0x044 then
+    -- Triggers once to tell sub job info, and again with main job info. Triggers on job change and zone change.
+    -- Importantly, this packet includes BLU spell info, although it is not decoded by packets library.
+    -- This does not include level info so we will rely on either 0xDF for `job change` event to update levels
+
+    if not job_update_status.started_update_at or job_update_status.started_update_at == 0 then
+      job_update_status.started_update_at = now()
+    elseif (now() - job_update_status.started_update_at) > 10 then -- Check if we've lost a packet
+      -- Seems like we might have lost a packet. Reset flags for a fresh start
+      job_update_status.main_update_received = false
+      job_update_status.sub_update_received = false
+      job_update_status.is_changed = false
+      job_update_status.started_update_at = now()
+    end
+
+    local p = packets.parse('incoming', data)
+    local member = get_member(player.id, player.name, true)
+
+    if p['Subjob'] then
+      job_update_status.sub_update_received=true
+
+      local job = res.jobs[p['Job']].ens
+      if job ~= member.sub then
+        player.sub_job = job
+        member.sub = job
+        job_update_status.is_changed=true -- Flag if this was changed
+      end
+    else
+      job_update_status.main_update_received=true
+
+      local job = res.jobs[p['Job']].ens
+      if job ~= member.main then
+        player.main_job = job
+        member.main = job
+        job_update_status.is_changed=true -- Flag if this was changed
+      end
+    end
+
+    if job_update_status.main_update_received and job_update_status.sub_update_received then
+      -- Finished job update. Reset flags
+      job_update_status.main_update_received = false
+      job_update_status.sub_update_received = false
+      job_update_status.started_update_at = 0
+
+      -- If there were changes, make appropriate updates
+      if job_update_status.is_changed then
+        job_update_status.is_changed=false
+        -- Using this 0 delay schedule will cause this update to happen after the packet finishes processing by windower.
+        -- This is necessary in order to read equipped BLU spells correctly.
+        read_dw_traits:schedule(0)
+      end
+    end
   end
 end)
-
 
 windower.register_event('action', function(act)
   if act.category == 1 and player.id == act.actor_id then -- Melee attack
@@ -1168,9 +1280,14 @@ end)
 
 -- Hook into job/subjob change event (happens BEFORE job starts changing)
 windower.register_event('outgoing chunk', function(id, data, modified, injected, blocked)
-  if id == 0x100 then -- Sending job change command to server
+  if id == 0x100 then -- Sending job change command to server, but job not yet changed
     local member = get_member(player.id, player.name)
     reset_member(member)
+  elseif id == 0x102 then -- Sent when setting blu spells, among other things (non-blu related)
+    if player.main_job == 'BLU' then
+      -- Update tracked dw traits
+      read_dw_traits()
+    end
   end
 end)
 
@@ -1198,6 +1315,18 @@ end)
 
 windower.register_event('login',function ()
   windower.send_command('lua r hasteinfo')
+end)
+
+windower.register_event('job change', function(main_job_id, main_job_level, sub_job_id, sub_job_level)
+  local member = get_member(player.id, player.name)
+  if not member then return end
+
+  -- Update player levels. We rely on packet 0x044 to tell us the rest
+  player.main_job_level = main_job_level
+  member.main_lv = main_job_level
+  
+  player.sub_job_level = sub_job_level
+  member.sub_lv = sub_job_level
 end)
 
 windower.register_event('addon command', function(cmd, ...)
@@ -1265,19 +1394,19 @@ windower.register_event('addon command', function(cmd, ...)
       
       windower.add_to_chat(6, ' ')
       windower.add_to_chat(6, chat_d_blue.. 'HasteInfo Commands available:' )
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi r\'' .. chat_white .. ': Reload HasteInfo addon')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi vis \'' .. chat_white .. ': Toggle UI visibility')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi show \'' .. chat_white .. ': Show UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi hide \'' .. chat_white .. ': Hide UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi resetpos \'' .. chat_white .. ': Reset position of UI to default')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi party \'' .. chat_white .. ': Toggle party details in UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi details \'' .. chat_white .. ': Toggle your own haste details in UI (takes optional subcommands')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi r\'' .. chat_white .. ': Reload HasteInfo addon')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi vis \'' .. chat_white .. ': Toggle UI visibility')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi show \'' .. chat_white .. ': Show UI')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi hide \'' .. chat_white .. ': Hide UI')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi resetpos \'' .. chat_white .. ': Reset position of UI to default')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi party \'' .. chat_white .. ': Toggle party details in UI')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi details \'' .. chat_white .. ': Toggle your own haste details in UI (takes optional subcommands')
 			windower.add_to_chat(6, chat_l_blue..	'         fraction' .. chat_white .. 'Enables display of haste values in fractions')
 			windower.add_to_chat(6, chat_l_blue..	'         percent' .. chat_white .. 'Enables display of haste values in percentages')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi pause \'' .. chat_white .. ': Pause haste reports (but continues processing)')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi play \'' .. chat_white .. ': Unpause haste reports (but continues processing)')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi debug \'' .. chat_white .. ': Toggle debug mode')
-      windower.add_to_chat(6, chat_l_blue..	'\'\/\/hi help \'' .. chat_white .. ': Display this help menu again')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi pause \'' .. chat_white .. ': Pause haste reports (but continues processing)')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi play \'' .. chat_white .. ': Unpause haste reports (but continues processing)')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi debug \'' .. chat_white .. ': Toggle debug mode')
+      windower.add_to_chat(6, chat_l_blue..	'\'//hi help \'' .. chat_white .. ': Display this help menu again')
     else
       windower.send_command('hi help')
     end

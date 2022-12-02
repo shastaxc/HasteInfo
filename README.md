@@ -97,7 +97,6 @@ ignored by HasteInfo.
 
 ## TODO
 * Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
-* Hook into job change event and blu spell equip event to recalculate dual wield.
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
 * Account for Marcato, Soul Voice potency
@@ -114,4 +113,4 @@ ignored by HasteInfo.
   - Weakness (-1024/1024)
   - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
-* Update dw on job change
+* Update player table when changing merits and job point allocations. Update DW if necessary.

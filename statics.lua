@@ -425,3 +425,13 @@ dw_blu_spells = {
   [699] = {id=699,en="Barbed Crescent",ja="偃月刃",trait_points=4},
   [715] = {id=715,en="Molting Plumage",ja="モルトプルメイジ",trait_points=8},
 }
+
+-- Incoming packet 0x044 actually sends 2 different packets on job change and zone change
+-- One packet includes subjob info, the other includes main job info
+-- This table tracks the status so we know when both updates have completed
+job_update_status = {
+  main_update_received=false,
+  sub_update_received=false,
+  is_changed=false,
+  started_update_at=0,
+}
