@@ -76,14 +76,15 @@ function init()
   -- Add initial party data
   local party = windower.ffxi.get_party()
   for i = 0, 5 do
-    local member = party['p'..i]
-    if member and member.name then
+    local actor = party['p'..i]
+    if actor and actor.name then
       local actor_id
-      if member.mob and member.mob.id > 0 then
-        actor_id = member.mob.id
+      if actor.mob and actor.mob.id > 0 then
+        actor_id = actor.mob.id
       end
       -- Create user if doesn't already exist
-      get_member(actor_id, member.name)
+      local member = get_member(actor_id, actor.name)
+      member.zone = actor.zone
     end
   end
   
@@ -159,7 +160,8 @@ end
 -- Detects if member is in the same zone as the main player
 function is_in_zone(member)
   if member.id == player.id then return true end
-  return member.zone == 0
+  local me = get_member(player.id, player.name, true)
+  return member.zone == me.zone
 end
 
 -- Packet should already be parsed
@@ -1050,12 +1052,9 @@ end
 function read_dw_traits(dontReport)
   local me = get_member(player.id, player.name, true)
   if not me then return end
-  -- print('reading dw traits')
   local dw_tier = 0
   dw_tier = math.max(dw_tier, get_dw_tier_for_job(me, true))
-  -- print('dw_tier = '..dw_tier)
   dw_tier = math.max(dw_tier, get_dw_tier_for_job(me, false))
-  -- print('dw_tier = '..dw_tier)
   
   stats.dual_wield.traits = dw_tiers[dw_tier]
 
@@ -1090,7 +1089,6 @@ function get_dw_tier_for_job(member, is_main)
   elseif job == 'BLU' then
     -- Determine dual wield based on equipped BLU spells
     local spell_ids = is_main and windower.ffxi.get_mjob_data().spells or windower.ffxi.get_sjob_data().spells or {}
-    table.vprint(spell_ids)
     local trait_points = 0
     for k,spell_id in ipairs(spell_ids) do
       -- Check if equipped spell is a dw spell
@@ -1113,7 +1111,13 @@ end
 
 windower.register_event('incoming chunk', function(id, data, modified, injected, blocked)
   if id == 0x076 then -- Party buffs update; does not include self
+    -- Triggers whenever someone joins/leaves party or changes zone
     parse_buffs(data)
+  elseif id == 0x00A then -- Zoning into new zone
+    local packet = packets.parse('incoming', data)
+
+    local me = get_member(player.id, player.name)
+    me.zone = packet.Zone
   elseif id == 0xDF then -- char update
     local packet = packets.parse('incoming', data)
     if packet then
@@ -1121,10 +1125,17 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       if playerId and playerId > 0 then
         -- print('PACKET: Char update for player ID: '..playerId)
         local member = get_member(playerId, nil)
-
+        local me = get_member(player.id, player.name)
+  
         -- Update zone info
-        local zone = packet['Zone']
-        member.zone = zone or member.zone
+        local new_zone = packet['Zone']
+        local old_zone = member.zone
+        if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
+          member.zone = new_zone
+          if member.id ~= player.id and old_zone == me.zone then
+            remove_zoned_effects(member)
+          end
+        end
         
         update_job_from_packet(member, packet)
       else
@@ -1133,21 +1144,26 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     end
   elseif id == 0xDD then -- party member update
     local packet = packets.parse('incoming', data)
-    if packet then
-      local name = packet['Name']
-      local playerId = packet['ID']
-      if name and playerId and playerId > 0 then
-        -- print('PACKET: Party member update for '..name)
-        local member = get_member(playerId, name)
+    local name = packet['Name']
+    local playerId = packet['ID']
+    if name and playerId and playerId > 0 then
+      -- print('PACKET: Party member update for '..name)
+      local member = get_member(playerId, name)
+      local me = get_member(player.id, player.name)
 
-        -- Update zone info
-        local zone = packet['Zone']
-        member.zone = zone or member.zone
-        
-        update_job_from_packet(member, packet)
-      else
-        print('Party update: name and/or ID not found.')
+      -- Update zone info
+      local new_zone = packet['Zone']
+      local old_zone = member.zone
+      if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
+        member.zone = new_zone
+        if member.id ~= player.id and old_zone == me.zone then
+          remove_zoned_effects(member)
+        end
       end
+      
+      update_job_from_packet(member, packet)
+    else
+      print('Party update: name and/or ID not found.')
     end
   elseif id == 0x063 then -- Set Update packet
     -- Update buff durations. credit: Akaden, Buffed addon

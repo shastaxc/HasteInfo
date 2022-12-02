@@ -86,6 +86,7 @@ ignored by HasteInfo.
 * Unknown sources of Haste will be assumed to be -150/1024 (~15%).
   - This includes additional effect items such as Blurred Knife +1. The client receives no indication at all where that form of haste comes from, only that you received the buff.
 * Anonymous jobs must be deduced by the spells and abilities used, but only DNC really needs to be tracked.
+* Magic haste can only be summed to a cap of 1024/1024 before subtracting debuffs before applying the usual magic haste cap. For example, if we have Haste II, Embrava, Idris Geo-Haste, Victory March, Honor March, and Weakness without the assumed summation cap of 1024, that should add up to 1469 (buffs) - 1024 (weakness) = 445, which is almost capped for magic haste. However, I believe it would really end up capping the buff summation at 1024 and then weakness subtracts 1024 and we're left with a magic haste of 0. This needs to be confirmed.
 
 ## Misc Info
 
@@ -100,7 +101,6 @@ ignored by HasteInfo.
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
 * Account for Marcato, Soul Voice potency
-* Detect zone change events for other players and call the `remove_zoned_effects()` function
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet)
 * Remove party members if they are not present in the party buff packet
 * Implement commands:
@@ -114,3 +114,4 @@ ignored by HasteInfo.
   - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
 * Update player table when changing merits and job point allocations. Update DW if necessary.
+* Double check all buffs to see if they persist through zoning or not.
