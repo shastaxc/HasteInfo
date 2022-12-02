@@ -435,3 +435,13 @@ job_update_status = {
   is_changed=false,
   started_update_at=0,
 }
+
+chat_purple = string.char(0x1F, 200)
+chat_grey = string.char(0x1F, 160)
+chat_red = string.char(0x1F, 167)
+chat_white = string.char(0x1F, 001)
+chat_green = string.char(0x1F, 214)
+chat_yellow = string.char(0x1F, 036)
+chat_d_blue = string.char(0x1F, 207)
+chat_pink = string.char(0x1E, 5)
+chat_l_blue = string.char(0x1E, 6)

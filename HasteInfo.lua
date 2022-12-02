@@ -935,16 +935,17 @@ function update_ui_text(force_update)
   if not force_update and not ui:visible() then return end
 
   -- Get stats to display and report
+  local dw_traits = stats.dual_wield.traits
   local dw_needed = stats.dual_wield.actual_needed
   local total_haste = settings.show_fractions and stats.haste.total.actual.fraction or string.format("%.1f", stats.haste.total.actual.percent)
   local perc = settings.show_fractions and nil or '%'
-  local dw_traits = ''
+  local dw_traits_str = ''
   local ma_haste = ''
   local ja_haste = ''
   local eq_haste = ''
 
   if settings.show_haste_details then
-    dw_traits = stats.dual_wield.traits
+    dw_traits_str = stats.dual_wield.traits
     ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format("%.1f", stats.haste.ma.actual.percent)
     ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format("%.1f", stats.haste.ja.actual.percent)
     eq_haste = settings.show_fractions and stats.haste.eq.actual.fraction or string.format("%.1f", stats.haste.eq.actual.percent)
@@ -952,11 +953,15 @@ function update_ui_text(force_update)
 
   -- Compose new text string
   local str = ''
-  str = str..'DW Needed: '..dw_needed
-  if settings.show_haste_details then
-  str = str..' ('..dw_traits..' from traits)'
+  if dw_traits == 0 then
+    str = str..'DW: N/A | '
+  else
+    str = str..'DW Needed: '..dw_needed
+    if settings.show_haste_details then
+      str = str..' ('..dw_traits_str..' from traits) | '
+    end
   end
-  str = str..' | Haste: '..total_haste..perc
+  str = str..'Haste: '..total_haste..perc
   if settings.show_haste_details then
     str = str..' Total ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ)'
   end
@@ -1374,39 +1379,32 @@ windower.register_event('addon command', function(cmd, ...)
     elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
       -- Pause updating UI and sending reports, but keep updating tracked buffs and haste effects
       reports_paused = true
+      ui:color(255,0,0)
     elseif S{'unpause', 'play', 'resume', 'continue', 'start', 'on', 'enable'}:contains(cmd) then
       -- Continue updating UI and sending reports
       reports_paused = false
+      ui:color(255,255,255)
+      update_ui_text()
     elseif 'test' == cmd then
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
     elseif 'help' == cmd then
-      local chat_purple = string.char(0x1F, 200)
-      local chat_grey = string.char(0x1F, 160)
-      local chat_red = string.char(0x1F, 167)
-      local chat_white = string.char(0x1F, 001)
-      local chat_green = string.char(0x1F, 214)
-      local chat_yellow = string.char(0x1F, 036)
-      local chat_d_blue = string.char(0x1F, 207)
-      local chat_pink = string.char(0x1E, 5)
-      local chat_l_blue = string.char(0x1E, 6)
-      
       windower.add_to_chat(6, ' ')
       windower.add_to_chat(6, chat_d_blue.. 'HasteInfo Commands available:' )
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi r\'' .. chat_white .. ': Reload HasteInfo addon')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi vis \'' .. chat_white .. ': Toggle UI visibility')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi show \'' .. chat_white .. ': Show UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi hide \'' .. chat_white .. ': Hide UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi resetpos \'' .. chat_white .. ': Reset position of UI to default')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi party \'' .. chat_white .. ': Toggle party details in UI')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi details \'' .. chat_white .. ': Toggle your own haste details in UI (takes optional subcommands')
-			windower.add_to_chat(6, chat_l_blue..	'         fraction' .. chat_white .. 'Enables display of haste values in fractions')
-			windower.add_to_chat(6, chat_l_blue..	'         percent' .. chat_white .. 'Enables display of haste values in percentages')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi pause \'' .. chat_white .. ': Pause haste reports (but continues processing)')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi play \'' .. chat_white .. ': Unpause haste reports (but continues processing)')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi debug \'' .. chat_white .. ': Toggle debug mode')
-      windower.add_to_chat(6, chat_l_blue..	'\'//hi help \'' .. chat_white .. ': Display this help menu again')
+      windower.add_to_chat(6, chat_l_blue..	'//hi r' .. chat_white .. ': Reload HasteInfo addon')
+      windower.add_to_chat(6, chat_l_blue..	'//hi vis ' .. chat_white .. ': Toggle UI visibility')
+      windower.add_to_chat(6, chat_l_blue..	'//hi show ' .. chat_white .. ': Show UI')
+      windower.add_to_chat(6, chat_l_blue..	'//hi hide ' .. chat_white .. ': Hide UI')
+      windower.add_to_chat(6, chat_l_blue..	'//hi resetpos ' .. chat_white .. ': Reset position of UI to default')
+      windower.add_to_chat(6, chat_l_blue..	'//hi party ' .. chat_white .. ': Toggle party details in UI')
+      windower.add_to_chat(6, chat_l_blue..	'//hi details ' .. chat_white .. ': Toggle haste details in UI')
+			windower.add_to_chat(6, chat_l_blue..	'    fraction: ' .. chat_white .. 'Enables display of haste values in fractions')
+			windower.add_to_chat(6, chat_l_blue..	'    percent: ' .. chat_white .. 'Enables display of haste values in percentages')
+      windower.add_to_chat(6, chat_l_blue..	'//hi pause ' .. chat_white .. ': Pause haste reports (but continues processing)')
+      windower.add_to_chat(6, chat_l_blue..	'//hi play ' .. chat_white .. ': Unpause haste reports (but continues processing)')
+      windower.add_to_chat(6, chat_l_blue..	'//hi debug ' .. chat_white .. ': Toggle debug mode')
+      windower.add_to_chat(6, chat_l_blue..	'//hi help ' .. chat_white .. ': Display this help menu again')
     else
       windower.send_command('hi help')
     end
