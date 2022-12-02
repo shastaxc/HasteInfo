@@ -937,17 +937,16 @@ function update_ui_text(force_update)
   if not force_update and not ui:visible() then return end
 
   -- Get stats to display and report
-  local dw_traits = stats.dual_wield.traits
   local dw_needed = stats.dual_wield.actual_needed
   local total_haste = settings.show_fractions and stats.haste.total.actual.fraction or string.format("%.1f", stats.haste.total.actual.percent)
   local perc = settings.show_fractions and nil or '%'
-  local dw_traits_str = ''
+  local dw_traits = ''
   local ma_haste = ''
   local ja_haste = ''
   local eq_haste = ''
 
   if settings.show_haste_details then
-    dw_traits_str = stats.dual_wield.traits
+    dw_traits = stats.dual_wield.traits
     ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format("%.1f", stats.haste.ma.actual.percent)
     ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format("%.1f", stats.haste.ja.actual.percent)
     eq_haste = settings.show_fractions and stats.haste.eq.actual.fraction or string.format("%.1f", stats.haste.eq.actual.percent)
@@ -955,12 +954,12 @@ function update_ui_text(force_update)
 
   -- Compose new text string
   local str = ''
-  if dw_traits == 0 then
+  if dw_needed == -1 then
     str = str..'DW: N/A | '
   else
     str = str..'DW Needed: '..dw_needed
     if settings.show_haste_details then
-      str = str..' ('..dw_traits_str..' from traits) | '
+      str = str..' ('..dw_traits..' from traits) | '
     end
   end
   str = str..'Haste: '..total_haste..perc
