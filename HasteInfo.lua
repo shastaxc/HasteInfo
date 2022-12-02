@@ -1113,11 +1113,6 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
   if id == 0x076 then -- Party buffs update; does not include self
     -- Triggers whenever someone joins/leaves party or changes zone
     parse_buffs(data)
-  elseif id == 0x00A then -- Zoning into new zone
-    local packet = packets.parse('incoming', data)
-
-    local me = get_member(player.id, player.name)
-    me.zone = packet.Zone
   elseif id == 0xDF then -- char update
     local packet = packets.parse('incoming', data)
     if packet then
@@ -1289,13 +1284,20 @@ windower.register_event('action', function(act)
 end)
 
 -- Triggers on player status change. This only triggers for the following statuses:
--- Idle, Engaged, Resting, Dead, Zoning
+-- Idle, Engaged, Resting, Dead
 windower.register_event('status change', function(new_status_id, old_status_id)
   -- In any of these status change scenarios, haste samba status should be reset
   -- Other effects will update from the buff update packet
   local member = get_member(player.id, player.name)
   if member and member.samba then
     update_samba(member, false)
+  end
+
+  -- Hide UI while dead
+  if new_status_id == 3 then
+    hide_ui()
+  elseif old_status_id == 3 then
+    show_ui()
   end
 end)
 
@@ -1309,13 +1311,19 @@ windower.register_event('outgoing chunk', function(id, data, modified, injected,
       -- Update tracked dw traits
       read_dw_traits()
     end
+  elseif id == 0x05E then -- Start leaving zone
+    hide_ui()
+  elseif id == 0x00D then -- Last packet sent when leaving zone
+    local member = get_member(player.id, player.name)
+    remove_zoned_effects(member)
   end
 end)
 
+-- Triggers after zoning
 windower.register_event('zone change', function(new_zone, old_zone)
-  -- Update buffs after zoning
-  local member = get_member(player.id, player.name)
-  remove_zoned_effects(member)
+  show_ui()
+  local me = get_member(player.id, player.name, true)
+  me.zone = new_zone
 end)
 
 windower.register_event('load', function()

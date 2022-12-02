@@ -97,21 +97,22 @@ ignored by HasteInfo.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO
-* Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
-* Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
+* Remove party members if they are not present in the party buff packet
 * Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
 * Account for Marcato, Soul Voice potency
-* Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet)
-* Remove party members if they are not present in the party buff packet
-* Implement commands:
-  - Toggle party details UI
-* Implement UI
-  - Option to display tracked party members and their jobs
 * Account for debuff effects:
   - Battlefield Elegy (-256/1024)
   - Carnage Elegy (-512/1024)
   - Weakness (-1024/1024)
   - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
+* Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
+* Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet)
+* Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
+* Implement commands:
+  - Toggle party details UI
+* Implement UI
+  - Option to display tracked party members and their jobs
 * Update player table when changing merits and job point allocations. Update DW if necessary.
-* Double check all buffs to see if they persist through zoning or not.
+* Double check all buffs to see if they persist through zoning or not. Maybe they wear off when entering specific zones and not others?
+* Verify that hiding UI while dead works.
