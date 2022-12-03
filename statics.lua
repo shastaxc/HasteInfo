@@ -1,3 +1,5 @@
+log_name = 'hasteinfo_err.log'
+
 player = windower.ffxi.get_player()
 
 reports_paused = false

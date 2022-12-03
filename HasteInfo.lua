@@ -1,38 +1,3 @@
--- Copyright © 2022, Shasta
--- All rights reserved.
-
--- Redistribution and use in source and binary forms, with or without
--- modification, are permitted provided that the following conditions are met:
-
---     * Redistributions of source code must retain the above copyright
---       notice, this list of conditions and the following disclaimer.
---     * Redistributions in binary form must reproduce the above copyright
---       notice, this list of conditions and the following disclaimer in the
---       documentation and/or other materials provided with the distribution.
---     * Neither the name of SilverLibs nor the
---       names of its contributors may be used to endorse or promote products
---       derived from this software without specific prior written permission.
-
--- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
--- ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
--- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
--- DISCLAIMED. IN NO EVENT SHALL <your name> BE LIABLE FOR ANY
--- DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
--- (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
--- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
--- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
--- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
--- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-
---=============================================================================
---=============================================================================
---====================             DO NOT              ========================
---====================             MODIFY              ========================
---====================            ANYTHING             ========================
---=============================================================================
---=============================================================================
-
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
 _addon.version = '0.0.3'
@@ -45,7 +10,6 @@ require('logger')
 require('tables')
 require('lists')
 require('sets')
-require('logger')
 require('strings')
 require('functions')
 
@@ -1497,6 +1461,28 @@ windower.register_event('action', function(act)
     parse_action(act, ACTION_TYPE.SELF_CATASTROPHE)
   elseif act.category == 13 and haste_triggers['Job Ability'][act.param] then -- Pet uses ability
     parse_action(act, ACTION_TYPE.PET)
+  end
+end)
+
+windower.register_event('action message', function(actor_id, target_id, actor_index, target_index, message_id, param_1, param_2, param_3)
+  -- Listen for messages that may correspond to losing a buff
+  local interesting_ids = S{341, 342, 343, 344, 647, 757, 792, 806}
+  if message_id and interesting_ids:contains(message_id) then
+    -- Write to file for later analysis
+    local message_id = message_id
+    local actor_id = actor_id or 'nil'
+    local target_id = target_id or 'nil'
+    local actor_index = actor_index or 'nil'
+    local target_index = target_index or 'nil'
+    local param_1 = param_1 or 'nil'
+    local param_2 = param_2 or 'nil'
+    local param_3 = param_3 or 'nil'
+    local action_msg = res.action_messages[message_id]
+    local d = ', '
+    local str = 'message_id='..message_id..d..'actor_id='..actor_id..d..'target_id='..target_id..d..
+                'actor_index='..actor_index..d..'target_index='..target_index..d..'param_1='..param_1..d..
+                'param_2='..param_2..d..'param_3='..param_3..d..'action_msg='..action_msg
+    flog(log_name, str)
   end
 end)
 
