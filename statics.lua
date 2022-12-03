@@ -111,11 +111,19 @@ geo_active = T{
   -- [caster_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, multipliers=T{}, caster_id=num}
 }
 
+summary_mode_options = T{
+  [0] = 'off',
+  [1] = 'minimal',
+  [2] = 'verbose',
+}
+
 -- Default settings
 defaults = {
   show_ui=true,
   show_fractions = false,
-  show_haste_details = false,
+  show_party = false,
+  show_breakdown = false,
+  summary_mode = 2,
   display={
     text={
       size=10,

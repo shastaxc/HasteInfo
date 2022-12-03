@@ -91,6 +91,10 @@ function add_member(id, name)
   end
   local new_member = {id=id, name=name, main='', main_lv=0, sub='', sub_lv=0, samba={}, songs=T{}, haste_effects=T{}, buffs=L{}}
   players[id] = new_member
+  
+  if settings.show_party then
+    update_ui_text() -- Update UI
+  end
   return players[id]
 end
 
@@ -125,6 +129,10 @@ function remove_member(member_id)
   players[member_id] = nil
   remove_indi_effect(member_id)
   remove_geo_effect(member_id)
+  
+  if settings.show_party then
+    update_ui_text() -- Update UI
+  end
 end
 
 -- Detects if member is in the same zone as the main player
@@ -1042,16 +1050,24 @@ function update_ui_text(force_update)
   if not force_update and not ui:visible() then return end
 
   -- Get stats to display and report
-  local dw_needed = stats.dual_wield.actual_needed
-  local total_haste = settings.show_fractions and stats.haste.total.actual.fraction or string.format('%.1f', stats.haste.total.actual.percent)
-  local perc = settings.show_fractions and nil or '%'
+  local dw_needed = tostring(stats.dual_wield.actual_needed)
+  if stats.dual_wield.actual_needed == 0 then
+    -- Change to green if capped
+    dw_needed = '\\cs(0,255,0)'..dw_needed..'\\cs(255,255,255)'
+  end
+  local total_haste = tostring(settings.show_fractions and stats.haste.total.actual.fraction or string.format('%.1f', stats.haste.total.actual.percent))
+  if stats.haste.total.actual.fraction == haste_caps.total.fraction then
+    -- Change to green if capped
+    total_haste = '\\cs(0,255,0)'..total_haste..'\\cs(255,255,255)'
+  end
+  local perc = settings.show_fractions and '' or '%'
   local dw_traits = ''
   local ma_haste = ''
   local ja_haste = ''
   local eq_haste = ''
   local debuff = ''
 
-  if settings.show_haste_details then
+  if settings.summary_mode == 2 then
     dw_traits = stats.dual_wield.traits
     ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format('%.1f', stats.haste.ma.actual.percent)
     ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format('%.1f', stats.haste.ja.actual.percent)
@@ -1059,20 +1075,42 @@ function update_ui_text(force_update)
     debuff = settings.show_fractions and stats.haste.debuff.actual.fraction or string.format('%.1f', stats.haste.debuff.actual.percent)
   end
 
-  -- Compose new text string
-  local str = ''
-  if dw_needed == -1 then
-    str = str..'DW: N/A'
-  else
-    str = str..'DW Needed: '..dw_needed
-    if settings.show_haste_details then
-      str = str..' ('..dw_traits..' from traits)'
+  -- Create text line-by-line
+  local lines = T{}
+
+  if settings.summary_mode > 0 then
+    local str = ''
+    if dw_needed == -1 then
+      str = str..'DW: N/A'
+    else
+      str = str..'DW Needed: '..dw_needed
+      if settings.summary_mode == 2 then
+        str = str..' ('..dw_traits..' from traits)'
+      end
+    end
+    str = str..' | Haste: '..total_haste..perc
+    str = str..(settings.show_fractions and '/1024' or '')
+    if settings.summary_mode == 2 then
+      str = str..' ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ, -'..debuff..perc..' Debuff)'
+    end
+    lines:append(str)
+  end
+  
+  if settings.show_party then
+    for p in players:it() do
+      local main_str = (not p.main and '???') or (p.main=='' and '???') or p.main
+      local sub_str = (not p.sub and '???') or (p.sub=='' and '???') or p.sub
+      local name_str = (not p.name and p.id) or (p.name=='' and p.id) or p.name
+      local str = main_str..'/'..sub_str..' '..name_str
+      lines:append(str)
     end
   end
-  str = str..' | Haste: '..total_haste..perc
-  if settings.show_haste_details then
-    str = str..' ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ, -'..debuff..perc..' Debuff)'
+
+  if settings.show_breakdown then
   end
+
+  -- Compose new text by combining all lines into a single string separated by line breaks
+  local str = lines:concat('\n')
 
   ui:text(str)
 end
@@ -1589,18 +1627,44 @@ windower.register_event('addon command', function(cmd, ...)
       settings.display.pos.y = 0
       settings:save()
       ui:pos(0, 0)
-    elseif 'party' == cmd then
-      -- TODO: Toggle party details in UI
-    elseif 'details' == cmd then
-      -- Toggle main player's haste details in UI
-      settings.show_haste_details = not settings.show_haste_details
+    elseif S{'detail', 'details'}:contains(cmd) then
+      if not args[1] then
+        -- If all details enabled, collapse
+        if settings.summary_mode == 2 and settings.show_party and settings.show_breakdown then
+          settings.summary_mode = 1
+          settings.show_party = false
+          settings.show_breakdown = false
+        else
+          -- Else, enable all
+          settings.summary_mode = 2
+          settings.show_party = true
+          settings.show_breakdown = true
+        end
+      elseif S{'fractions', 'fraction', 'frac', 'percentage', 'percentages', 'percent', 'perc'}:contains(args[1]) then
+        settings.show_fractions = not settings.show_fractions
+      elseif 'summary' == args[1] then
+        settings.summary_mode = (settings.summary_mode + 1) % 3
+        local new_mode = summary_mode_options[settings.summary_mode]
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: Summary mode set to \''..new_mode..'\'')
+      elseif 'party' == args[1] then
+        settings.show_party = not settings.show_party
+      elseif S{'breakdown', 'effect', 'effects'}:contains(args[1]) then
+        settings.show_breakdown = not settings.show_breakdown
+      elseif S{'expand', 'verbose'}:contains(args[1]) then
+        settings.summary_mode = 2
+        settings.show_party = true
+        settings.show_breakdown = true
+      elseif S{'collapse', 'collapsed', 'min', 'minimal'}:contains(args[1]) then
+        settings.summary_mode = 1
+        settings.show_party = false
+        settings.show_breakdown = false
+      elseif 'reset' == args[1] then
+        settings.summary_mode = defaults.summary_mode
+        settings.show_party = defaults.show_party
+        settings.show_breakdown = defaults.show_breakdown
+      end
       settings:save()
       update_ui_text()
-      if S{'fractions', 'fraction', 'frac', 'f'}:contains(args[1]) then
-        settings.show_fractions = true
-      elseif S{'percentage', 'percentages', 'percent', 'perc', 'p'}:contains(args[1]) then
-        settings.show_fractions = false
-      end 
     elseif 'report' == cmd then
       report(true)
     elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
@@ -1613,6 +1677,7 @@ windower.register_event('addon command', function(cmd, ...)
       ui:color(255,255,255)
       update_ui_text()
     elseif 'test' == cmd then
+      table.vprint(players)
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
@@ -1625,9 +1690,13 @@ windower.register_event('addon command', function(cmd, ...)
       windower.add_to_chat(6, chat_l_blue..	'//hi hide ' .. chat_white .. ': Hide UI')
       windower.add_to_chat(6, chat_l_blue..	'//hi resetpos ' .. chat_white .. ': Reset position of UI to default')
       windower.add_to_chat(6, chat_l_blue..	'//hi party ' .. chat_white .. ': Toggle party details in UI')
-      windower.add_to_chat(6, chat_l_blue..	'//hi details ' .. chat_white .. ': Toggle haste details in UI')
-			windower.add_to_chat(6, chat_l_blue..	'    fraction: ' .. chat_white .. 'Enables display of haste values in fractions')
-			windower.add_to_chat(6, chat_l_blue..	'    percent: ' .. chat_white .. 'Enables display of haste values in percentages')
+      windower.add_to_chat(6, chat_l_blue..	'//hi detail ' .. chat_white .. ': Toggle details in UI')
+			windower.add_to_chat(6, chat_l_blue..	'    fraction ' .. chat_white .. ': Toggle haste values in fraction or percent')
+			windower.add_to_chat(6, chat_l_blue..	'    party ' .. chat_white .. ': Toggle display of party info')
+			windower.add_to_chat(6, chat_l_blue..	'    breakdown ' .. chat_white .. ': Toggle display of haste effect breakdown')
+			windower.add_to_chat(6, chat_l_blue..	'    expand ' .. chat_white .. ': Turns on all details')
+			windower.add_to_chat(6, chat_l_blue..	'    collapse ' .. chat_white .. ': Turns off all details')
+			windower.add_to_chat(6, chat_l_blue..	'    reset ' .. chat_white .. ': Reset details to default settings')
       windower.add_to_chat(6, chat_l_blue..	'//hi pause ' .. chat_white .. ': Pause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'//hi play ' .. chat_white .. ': Unpause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'//hi debug ' .. chat_white .. ': Toggle debug mode')
