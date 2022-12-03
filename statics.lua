@@ -111,7 +111,7 @@ geo_active = T{
 
 -- Default settings
 defaults = {
-  show_ui=false,
+  show_ui=true,
   show_fractions = false,
   show_haste_details = false,
   display={
