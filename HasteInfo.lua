@@ -99,7 +99,7 @@ function load_settings()
   settings:save() -- In case file didn't exist, this creates one with defaults
   ui = texts.new('${value}', settings.display)
   
-  ui.value = 'HasteInfo Loading...'
+  ui.value = 'HasteInfo Loading/Broken...'
 
   -- Set UI visibility based on saved setting
   ui:visible(settings.show_ui)
@@ -252,10 +252,25 @@ function parse_action(act, type)
   elseif type == ACTION_TYPE.BARD_SONG then
     if not haste_triggers['Magic'][act.param] then return end
     local haste_effect = table.copy(haste_triggers['Magic'][act.param])
-
     -- Record this action. The next player update packet will tell us what the effect really was.
     local caster = get_member(act.actor_id, nil, true)
-    if not caster or not player[caster.id] then return end
+
+    if not caster then
+      -- Check if this is a debuff spell and handle accordingly
+      if haste_effect.haste_category == 'debuff' then
+        for i,target in ipairs(act.targets) do
+          if target.id == me.id then
+            local target_member = get_member(target.id)
+
+            -- Add to target haste effects
+            haste_effect.potency = haste_effect.potency_base
+            add_haste_effect(target_member, haste_effect)
+          end
+        end
+      else
+        return -- Don't do anything about buff songs from unknown casters
+      end
+    end
 
     for i,target in ipairs(act.targets) do
       -- Only care about songs on main player
@@ -290,7 +305,22 @@ function parse_action(act, type)
     local haste_effect = table.copy(haste_triggers['Magic'][act.param])
     
     local caster = get_member(act.actor_id, nil, true)
-    if not caster or not player[caster.id] then return end
+    if not caster then
+      -- Check if this is a debuff spell and handle accordingly
+      if haste_effect.haste_category == 'debuff' then
+        for i,target in ipairs(act.targets) do
+          if target.id == me.id then
+            local target_member = get_member(target.id)
+
+            -- Add to target haste effects
+            haste_effect.potency = haste_effect.potency_base
+            add_haste_effect(target_member, haste_effect)
+          end
+        end
+      else
+        return -- Don't do anything about buff songs from unknown casters
+      end
+    end
 
     for i,target in ipairs(act.targets) do
       local target_member = get_member(target.id)
@@ -618,7 +648,7 @@ function deduce_haste_effects(member, new_buffs)
           end
         elseif not skip then
           -- Unknown source, guess at potency
-          haste_effect = table.copy(haste_triggers['Other'][0])
+          haste_effect = table.copy(haste_triggers['Other'][1])
         end
 
         if haste_effect and not haste_effect.potency then
@@ -635,6 +665,18 @@ function deduce_haste_effects(member, new_buffs)
       if haste_effect then
         add_haste_effect(member, haste_effect)
       end
+    elseif SLOW_DEBUFF_IDS:contains(buff.id) then
+      local haste_effect
+      if buff.id == WEAKNESS_DEBUFF_ID then -- Weakness
+        haste_effect = table.copy(haste_triggers['Other'][0])
+      elseif buff.id == SLOW_SPELL_DEBUFF_ID then -- Slow
+        haste_effect = table.copy(haste_triggers['Other'][3])
+      elseif buff.id == SLOW_SONG_DEBUFF_ID then -- Elegy
+        haste_effect = table.copy(haste_triggers['Other'][4])
+      elseif buff.id == SLOW_GEO_DEBUFF_ID then -- GEO Slow
+        haste_effect = table.copy(haste_triggers['Other'][5])
+      end
+      add_haste_effect(member, haste_effect)
     end
   end
 end
@@ -990,18 +1032,20 @@ function update_ui_text(force_update)
 
   -- Get stats to display and report
   local dw_needed = stats.dual_wield.actual_needed
-  local total_haste = settings.show_fractions and stats.haste.total.actual.fraction or string.format("%.1f", stats.haste.total.actual.percent)
+  local total_haste = settings.show_fractions and stats.haste.total.actual.fraction or string.format('%.1f', stats.haste.total.actual.percent)
   local perc = settings.show_fractions and nil or '%'
   local dw_traits = ''
   local ma_haste = ''
   local ja_haste = ''
   local eq_haste = ''
+  local debuff = ''
 
   if settings.show_haste_details then
     dw_traits = stats.dual_wield.traits
-    ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format("%.1f", stats.haste.ma.actual.percent)
-    ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format("%.1f", stats.haste.ja.actual.percent)
-    eq_haste = settings.show_fractions and stats.haste.eq.actual.fraction or string.format("%.1f", stats.haste.eq.actual.percent)
+    ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format('%.1f', stats.haste.ma.actual.percent)
+    ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format('%.1f', stats.haste.ja.actual.percent)
+    eq_haste = settings.show_fractions and stats.haste.eq.actual.fraction or string.format('%.1f', stats.haste.eq.actual.percent)
+    debuff = settings.show_fractions and stats.haste.debuff.actual.fraction or string.format('%.1f', stats.haste.debuff.actual.percent)
   end
 
   -- Compose new text string
@@ -1016,7 +1060,7 @@ function update_ui_text(force_update)
   end
   str = str..'Haste: '..total_haste..perc
   if settings.show_haste_details then
-    str = str..' Total ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ)'
+    str = str..' ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ, -'..debuff..perc..' Debuff)'
   end
 
   ui:text(str)
@@ -1085,7 +1129,7 @@ function calculate_stats()
         stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + potency
       else
         -- Not tracking any indi- or geo- buffs, so just assume an effect
-        local effect = haste_triggers['Other'][1]
+        local effect = table.copy(haste_triggers['Other'][2])
         stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + effect.potency
       end
       break -- Can only have one active geomancy haste buff; no need to check the rest of the buffs
@@ -1116,7 +1160,7 @@ function calculate_stats()
   stats['haste']['total']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction']
                                                   + stats['haste']['ja']['uncapped']['fraction']
                                                   + stats['haste']['eq']['uncapped']['fraction']
-                                                  - stats['haste']['debuffs']['uncapped']['fraction']
+                                                  - stats['haste']['debuff']['uncapped']['fraction']
 
   -- Calculate percent values
   for haste_cat, t in pairs(stats['haste']) do

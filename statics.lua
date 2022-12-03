@@ -40,7 +40,7 @@ default_stats = T{
         ['fraction'] = 256
       },
     },
-    ['debuffs'] = {
+    ['debuff'] = {
       ['actual'] = {
         ['percent'] = 0,
         ['fraction'] = 0
@@ -158,7 +158,7 @@ haste_caps = {
     ['percent'] = 25,
     ['fraction'] = 256
   },
-  ['debuffs'] = {
+  ['debuff'] = {
     ['percent'] = 100,
     ['fraction'] = 1024
   },
@@ -180,6 +180,12 @@ haste_triggers = T{
     [710] = {triggering_action='Erratic Flutter', triggering_id=710, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=307},
     [661] = {triggering_action='Animating Wail', triggering_id=661, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=150}, -- Exact potency unknown
     [750] = {triggering_action='Mighty Guard', triggering_id=750, buff_name='Mighty Guard', buff_id=604, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=150}, -- Exact potency unknown
+    [421] = {triggering_action='Battlefield Elegy', triggering_id=421, buff_name='Elegy', buff_id=194, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=256}, -- Assume enemies have base potency
+    [422] = {triggering_action='Carnage Elegy', triggering_id=422, buff_name='Elegy', buff_id=194, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=512}, -- Assume enemies have base potency
+    [ 56] = {triggering_action='Slow', triggering_id=56, buff_name='Slow', buff_id=13, haste_category='ma', trigger_category='Magic', trigger_sub_category='WhiteMagic', persists_thru_zoning=false, potency_base=300}, -- Assume enemies have base potency
+    [ 79] = {triggering_action='Slow II', triggering_id=56, buff_name='Slow', buff_id=13, haste_category='ma', trigger_category='Magic', trigger_sub_category='WhiteMagic', persists_thru_zoning=false, potency_base=359}, -- Assume enemies have base potency
+    [795] = {triggering_action='Indi-Slow', triggering_id=795, buff_name='Slow', buff_id=565, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=152}, -- Assume enemies have base potency
+    [825] = {triggering_action='Geo-Slow', triggering_id=825, buff_name='Slow', buff_id=565, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=152}, -- Assume enemies have base potency
   },
   ['Job Ability'] = {
     [595] = {triggering_action='Hastega', triggering_id=595, buff_name='Haste', buff_id=33, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='BloodPactWard', persists_thru_zoning=false, potency_base=153},
@@ -195,8 +201,12 @@ haste_triggers = T{
     [  1] = {triggering_action='Additional Effect Melee', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Melee', trigger_sub_category='', persists_thru_zoning=false, potency_base=150},
   },
   ['Other'] = {
-    [  0] = {triggering_action='Unknown Haste', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Unknown', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=150, potency=150},
-    [  1] = {triggering_action='Unknown GEO Haste', triggering_id=0, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency=427},
+    [  0] = {triggering_action='Weakness', triggering_id=0, buff_name='Slow', buff_id=1, haste_category='debuff', trigger_category='', trigger_sub_category='', persists_thru_zoning=false, potency_base=1024, potency=1024},
+    [  1] = {triggering_action='Unknown Haste', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Unknown', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=150, potency=150},
+    [  2] = {triggering_action='Unknown GEO Haste', triggering_id=0, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency=427},
+    [  3] = {triggering_action='Unknown Slow', triggering_id=0, buff_name='Slow', buff_id=13, haste_category='debuff', trigger_category='Magic', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=300, potency=300}, -- Assume enemies have base potency
+    [  4] = {triggering_action='Unknown Elegy', triggering_id=0, buff_name='Elegy', buff_id=194, haste_category='debuff', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=512, potency=512}, -- Assume enemies have base potency
+    [  5] = {triggering_action='Unknown GEO Slow', triggering_id=0, buff_name='Slow', buff_id=565, haste_category='debuff', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=152, potency=152}, -- Assume enemies have base potency
   }
 }
 
@@ -357,9 +367,11 @@ SONG_HASTE_BUFF_ID = 214
 GEO_HASTE_BUFF_ID = 580
 HASTE_BUFF_IDS = S{33, 64, 214, 228, 273, 353, 580, 604}
 
+WEAKNESS_DEBUFF_ID = 1
 SLOW_SPELL_DEBUFF_ID = 13
 SLOW_SONG_DEBUFF_ID = 194
-SLOW_DEBUFF_IDS = S{13, 194}
+SLOW_GEO_DEBUFF_ID = 565
+SLOW_DEBUFF_IDS = S{1, 13, 194, 565}
 
 SOUL_VOICE_BUFF_ID = 52
 SOUL_VOICE_MULTIPLIER = 2
