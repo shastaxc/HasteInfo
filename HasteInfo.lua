@@ -1051,14 +1051,14 @@ function update_ui_text(force_update)
   -- Compose new text string
   local str = ''
   if dw_needed == -1 then
-    str = str..'DW: N/A | '
+    str = str..'DW: N/A'
   else
     str = str..'DW Needed: '..dw_needed
     if settings.show_haste_details then
-      str = str..' ('..dw_traits..' from traits) | '
+      str = str..' ('..dw_traits..' from traits)'
     end
   end
-  str = str..'Haste: '..total_haste..perc
+  str = str..' | Haste: '..total_haste..perc
   if settings.show_haste_details then
     str = str..' ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ, -'..debuff..perc..' Debuff)'
   end
