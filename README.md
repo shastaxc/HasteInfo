@@ -128,16 +128,15 @@ ignored by HasteInfo.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO
+* Implement UI
+  - Option to display tracked party members and their jobs
+* Implement commands:
+  - Toggle party details UI
 * Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
-* Implement commands:
-  - Toggle party details UI
-* Implement UI
-  - Option to display tracked party members and their jobs
 * Update player table when changing merits and job point allocations. Update DW if necessary.
 * Double check all buffs to see if they persist through zoning or not. Maybe they wear off when entering specific zones and not others?
-* Enhance deduction of GEO actions based on buffs, when necessary (see TODO stubs).
 * Verify that hiding UI while dead works.
 * Verify that debuff effects are properly detected and calculated:
   - Battlefield Elegy (-256/1024)
