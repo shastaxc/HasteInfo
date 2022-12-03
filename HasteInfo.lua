@@ -291,7 +291,7 @@ function parse_action(act, type)
           haste_effect.potency = math.floor(haste_effect.potency_base + (haste_effect.potency_base * 0.1 * song_bonus))
 
           -- Determine JA multipliers to potency
-          haste_effect.multipliers = {}
+          haste_effect.multipliers = T{}
           haste_effect.multipliers['Soul Voice'] = caster.buffs:contains(SOUL_VOICE_BUFF_ID) and SOUL_VOICE_MULTIPLIER or 1
           haste_effect.multipliers['Marcato'] = caster.buffs:contains(MARCATO_BUFF_ID) and MARCATO_MULTIPLIER or 1
 
@@ -349,12 +349,12 @@ function parse_action(act, type)
       if haste_effect.triggering_action:startswith('Indi-') then
         haste_effect.caster_id = caster.id
         haste_effect.target_id = target_member.id
-        haste_effect.multipliers = {}
+        haste_effect.multipliers = T{}
         haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
         add_indi_effect(haste_effect)
       elseif haste_effect.triggering_action:startswith('Geo-') then
         haste_effect.caster_id = caster.id
-        haste_effect.multipliers = {}
+        haste_effect.multipliers = T{}
         haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
         haste_effect.multipliers[STR.BOG] = bog_multiplier
         add_geo_effect(haste_effect)
@@ -463,6 +463,7 @@ function add_haste_effect(member, haste_effect)
 
   -- Even if buff_id is already present, this could be a different action that provides the same buff_id but
   -- potentially different potency, so track this newer haste_effect instead.
+  haste_effect.received_at = now()
   member.haste_effects[haste_effect.buff_id] = haste_effect
   report()
 end
@@ -642,9 +643,54 @@ function deduce_haste_effects(member, new_buffs)
           local found_geo = geo_active:with('buff_id', buff.id)
           if not found_indi and not found_geo then
             -- Unknown source, but we know it's geomancy. Guess at stats and start tracking
-            -- TODO: Search party for a GEO and select them as the caster
-            -- TODO: Search party for a Colure Active buff and select them as the target
-            -- TODO: Add to indi_active table
+            local geo_in_pt
+            local entrusted_member
+            local all_buffs_empty = true
+            -- Search party for a GEO and select them as the caster
+            for p in players:it() do
+              if all_buffs_empty and p.buffs and not p.buffs:empty() then
+                all_buffs_empty = false
+              end
+              -- If Cornelia in party, assume it's her haste
+              if p.name == 'Cornelia' then
+                haste_effect = table.copy(haste_triggers['Magic'][771])
+                haste_effect.potency = haste_effect.base_potency
+                haste_effect.caster_id = p.id
+                haste_effect.target_id = p.id
+                add_indi_effect(haste_effect)
+              end
+              if p.main == 'GEO' then
+                geo_in_pt = p
+              elseif p.buffs and p.buffs:contains(COLURE_ACTIVE_ID) and not indi_active[p.id] then
+                if not entrusted_member or p.id == player.id then
+                  entrusted_member = p
+                end
+              end
+            end
+
+            -- If all other players' buff lists are empty, assume we haven't rec'd a buff update packet yet
+            -- or if there's no detected GEO, mark as unknown buff
+            if not haste_effect and (all_buffs_empty or not geo_in_pt) then
+              haste_effect = table.copy(haste_triggers['Other'][2])
+            end
+
+            -- Assume that if anyone is Entrusted but not on indi-active table, that is the Indi-Haste (prefer self)
+            if not haste_effect and geo_in_pt and entrusted_member then
+              haste_effect = table.copy(haste_triggers['Magic'][771])
+              haste_effect.potency = haste_effect.base_potency * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+              haste_effect.caster_id = geo_in_pt.id
+              haste_effect.target_id = entrusted_member.id
+              add_indi_effect(haste_effect)
+            end
+
+            -- If no one has Colure Active, assume it's a Geo-Haste
+            if not haste_effect and not entrusted_member and
+                (geo_in_pt and geo_in_pt.buffs and not geo_in_pt.buffs:contains(COLURE_ACTIVE_ID) and not geo_active[geo_in_pt.id]) then
+              haste_effect = table.copy(haste_triggers['Magic'][801])
+              haste_effect.potency = haste_effect.base_potency * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+              haste_effect.caster_id = geo_in_pt.id
+              add_geo_effect(haste_effect)
+            end
           end
         elseif not skip then
           -- Unknown source, guess at potency
@@ -964,6 +1010,7 @@ function reconcile_buff_update(member, new_buffs)
 
   -- Update buff list to new list
   member.buffs = new_buffs
+  report()
 end
 
 -- multiplier_name comes from STR enum
@@ -1330,6 +1377,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       print('Party update: name and/or ID not found.')
     end
   elseif id == 0x063 then -- Set Update packet
+    -- Sends buff ID and expiration for all of main player's current buffs
     -- Update buff durations. credit: Akaden, Buffed addon
     local order = data:unpack('H',0x05)
     if order == 9 then
