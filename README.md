@@ -30,13 +30,44 @@ haste calculations that I'm attempting to solve with HasteInfo:
   - GearInfo recalculates stats 2 times per second, or more if you have higher than 30 fps because its update loop is tied to the prerender loop
   - HasteInfo recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand in case someone wants it outside of the normal reporting cycle.
 
-## Installation/Usage
+## How to Install
 
 Download the addon and place the HasteInfo folder into your windower `addons` folder.
 In game, run this command: `lua load hasteinfo`
 
 If you want it to load automatically when you log in, I highly recommend configuring it in the Plugin Manager addon, which you can get in the Windower launcher.
 Plugin Manager details can be found at https://docs.windower.net/addons/pluginmanager/
+
+## How to Use
+
+HasteInfo just reports what dual wield you need to hit haste cap. You decide what to do with it. The most common use is likely going to be that you want your GearSwap to be told what DW value it needs, then respond by equipping some set of gear. Here's an example:
+
+Initialize your `dw_needed` variable in the function that triggers when you change main/sub jobs. This function is `user_setup()` in Mote's library and `job_setup()` in Selindrile's library. Mote's example:
+```lua
+function user_setup()
+  dw_needed = 0
+end
+```
+
+Next, set up your job lua to listen for reports from HasteInfo. Reports are sent only when the value changes, or if you call the `//hasteinfo report` command manually. If using Mote's library, modify function `job_self_command`. If using Selindrile's library, it is called `user_self_command`. Mote's example:
+```lua
+function job_self_command(cmdParams, eventArgs)
+  process_hasteinfo(cmdParams, eventArgs)
+end
+
+function process_hasteinfo(cmdParams, eventArgs)
+  if cmdParams[1] == 'hasteinfo' then
+    if dw_needed ~= cmdParams[2] then
+      dw_needed = cmdParams[2]
+      job_update()
+    end
+  end
+end
+```
+
+This will track your 'DW Needed' amount (according to HasteInfo) in a variable named `dw_needed`. And you can do whatever you want with it. You can reference this job lua for ideas https://github.com/shastaxc/gearswap-data/blob/main/Silvermutt-COR.lua
+
+Note: HasteInfo will give you a value of -1 if you are currently unable to dual wield at all.
 
 ## How It Works
 
@@ -98,7 +129,7 @@ ignored by HasteInfo.
 
 ## TODO
 * Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
-* Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet)
+* Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Implement commands:
   - Toggle party details UI
