@@ -157,6 +157,12 @@ function get_member(id, name, dontCreate)
   end
 end
 
+function remove_member(member_id)
+  players[member_id] = nil
+  remove_indi_effect(member_id)
+  remove_geo_effect(member_id)
+end
+
 -- Detects if member is in the same zone as the main player
 function is_in_zone(member)
   if member.id == player.id then return true end
@@ -258,19 +264,22 @@ function parse_action(act, type)
         if target_member then
           -- Add song gear bonuses
           local song_bonus = 0
-          if caster then -- caster is in party
-            -- Check for trusts
-            if trusts:with('name', caster.name) or caster.sub == 'BRD' then
-              song_bonus = 0
-            else
-              song_bonus = haste_effect.song_cap
-            end
-          else -- caster is not defined, must make assumptions about song potency
+
+          -- Check for trusts
+          if trusts:with('name', caster.name) or caster.sub == 'BRD' then
+            song_bonus = 0
+          else
             song_bonus = haste_effect.song_cap
           end
     
           -- Determine potency (each song bonus point adds 10% of base potency)
           haste_effect.potency = math.floor(haste_effect.potency_base + (haste_effect.potency_base * 0.1 * song_bonus))
+
+          -- Determine JA multipliers to potency
+          haste_effect.multipliers = {}
+          haste_effect.multipliers['Soul Voice'] = caster.buffs:contains(SOUL_VOICE_BUFF_ID) and SOUL_VOICE_MULTIPLIER or 1
+          haste_effect.multipliers['Marcato'] = caster.buffs:contains(MARCATO_BUFF_ID) and MARCATO_MULTIPLIER or 1
+
           haste_effect.received_at = now()
           target_member.songs[act.param] = haste_effect
         end
@@ -297,14 +306,27 @@ function parse_action(act, type)
       else -- not a trust
         geomancy = 10 -- assume idris; TODO: Enhance this with a whitelist/blacklist
       end
+
+      -- Determine potency
       haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_geomancy * geomancy)
+      
+      -- Determine JA boosts to potency
+      -- Bolster and Blaze of Glory both apply to the bubble, but its multiplier maxes at 2x
+      local bolster_multiplier = caster.buffs:contains(BOLSTER_BUFF_ID) and BOLSTER_MULTIPLIER or 1
+      local bog_multiplier = caster.buffs:contains(BOG_BUFF_ID) and BOG_MULTIPLIER or 1
+
       -- Also, add to the indi- or geo- table
       if haste_effect.triggering_action:startswith('Indi-') then
         haste_effect.caster_id = caster.id
         haste_effect.target_id = target_member.id
+        haste_effect.multipliers = {}
+        haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
         add_indi_effect(haste_effect)
       elseif haste_effect.triggering_action:startswith('Geo-') then
         haste_effect.caster_id = caster.id
+        haste_effect.multipliers = {}
+        haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
+        haste_effect.multipliers[STR.BOG] = bog_multiplier
         add_geo_effect(haste_effect)
       end
 
@@ -363,7 +385,7 @@ function parse_buffs(data)
     local actor_id = data:unpack('I', k*48+5)
     
     if actor_id ~= 0 then
-      local member = get_member(actor_id) or add_member(actor_id)
+      local member = get_member(actor_id)
       new_buffs = L{}
       for i = 1, 32 do
         local buff_id = data:byte(k*48+5+16+i-1) + 256*( math.floor( data:byte(k*48+5+8+ math.floor((i-1)/4)) / 4^((i-1)%4) )%4) -- Credit: Byrth, GearSwap
@@ -384,7 +406,7 @@ function parse_buffs(data)
   -- If there were previous entries with placeholder IDs, dump them. They will never reconcile.
   for member in players:it() do
     if member.id < 0 then
-      players[member.id] = nil
+      remove_member(member.id)
     end
   end
 end
@@ -587,19 +609,12 @@ function deduce_haste_effects(member, new_buffs)
         elseif buff.id == 580 then -- Geomancy
           -- Get haste effect from indi- and geo- tables
           local found_indi = indi_active:with('buff_id', buff.id)
-          if found_indi then
-            haste_effect = found_indi
-          else
-            local found_geo = geo_active:with('buff_id', buff.id)
-            if found_geo then
-              haste_effect = found_geo
-            end
-          end
-      
-          if not haste_effect then
-            -- Unknown source, but we know it's geomancy. Guess at potency
-            haste_effect = table.copy(haste_triggers[771])
-            haste_effect.potency = haste_effect.potency_base + (haste_effect.potency_per_geomancy * 10)
+          local found_geo = geo_active:with('buff_id', buff.id)
+          if not found_indi and not found_geo then
+            -- Unknown source, but we know it's geomancy. Guess at stats and start tracking
+            -- TODO: Search party for a GEO and select them as the caster
+            -- TODO: Search party for a Colure Active buff and select them as the target
+            -- TODO: Add to indi_active table
           end
         elseif not skip then
           -- Unknown source, guess at potency
@@ -877,9 +892,9 @@ function reconcile_buff_update(member, new_buffs)
   -- Resolve new buffs' haste effects and other special handling
   for buff in gained_buffs:it() do
     if buff.id == BOLSTER_BUFF_ID then -- Resolve Bolster effect on current Indi spell potency
-      -- TODO: update indi- table, and haste effects for all party members who have the corresponding buff
+      update_geomancy_effect_multiplier(member.id, STR.BOLSTER, true)
     elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve EA effect on current Geo spell potency
-      -- TODO: update geo- table, and haste effects for all party members who have the corresponding buff
+      update_geomancy_effect_multiplier(member.id, STR.EA, true)
     elseif HASTE_BUFF_IDS:contains(buff.id) then
       deduce_haste_effects(member, new_buffs)
     end
@@ -887,20 +902,57 @@ function reconcile_buff_update(member, new_buffs)
   
   -- Resolve lost buffs' haste effects and other special handling
   for buff in lost_buffs:it() do
-    -- See if there is a corresponding haste effect on player
-    local haste_effect = member.haste_effects[buff.id]
-    if haste_effect then -- Remove haste effect
-      remove_haste_effect(member, buff.id)
-    end
-
-    -- If lost buff is Colure Active, and this player was tracked as an indi target, remove from indi table
-    if buff.id == COLURE_ACTIVE_ID then
+    if buff.id == BOLSTER_BUFF_ID then -- Resolve the effect of losing Bolster
+      update_geomancy_effect_multiplier(member.id, STR.BOLSTER, false)
+    elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve the effect of losing EA
+      update_geomancy_effect_multiplier(member.id, STR.EA, false)
+    elseif buff.id == BOG_BUFF_ID then -- Resolve the effect of losing BoG
+      update_geomancy_effect_multiplier(member.id, STR.BOG, false)
+    elseif buff.id == COLURE_ACTIVE_ID then
+      -- If lost buff is Colure Active, and this player was tracked as an indi target, remove from indi table
       remove_indi_effect(member.id)
+    else
+      -- See if there is a corresponding haste effect on player
+      local haste_effect = member.haste_effects[buff.id]
+      if haste_effect then -- Remove haste effect
+        remove_haste_effect(member, buff.id)
+      end
     end
   end
 
   -- Update buff list to new list
   member.buffs = new_buffs
+end
+
+-- multiplier_name comes from STR enum
+-- is_gained: true == gained this buff, false == lost this buff
+function update_geomancy_effect_multiplier(caster_id, multiplier_name, is_gained)
+  local update_indi
+  local update_geo
+  local new_multiplier
+  if multiplier_name == STR.BOLSTER then
+    update_indi = true
+    update_geo = not is_gained
+    new_multiplier = is_gained and BOLSTER_MULTIPLIER or 1
+  elseif multiplier_name == STR.EA then
+    update_indi = false
+    update_geo = true
+    new_multiplier = is_gained and ECLIPTIC_ATTRITION_MULTIPLIER or 1
+  elseif multiplier_name == STR.BOG then
+    update_indi = false
+    update_geo = not is_gained
+    new_multiplier = is_gained and BOG_MULTIPLIER or 1
+  end
+
+  local found_effect
+  if update_indi then
+    found_effect = indi_active[caster_id] -- Only applies to the indi spell that caster casted on themselves
+    found_effect.multipliers[multiplier_name] = new_multiplier
+  end
+  if update_geo then
+    found_effect = geo_active[caster_id] -- Only applies to geo bubbles that caster casted
+    found_effect.multipliers[multiplier_name] = new_multiplier
+  end
 end
 
 
@@ -1004,11 +1056,49 @@ function calculate_stats()
     -- Add potency to stats
     stats['haste'][effect.haste_category]['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + effect.potency
   end
+  
+  -- Add Geomancy potency to ma category
+  for buff in me.buffs:it() do
+    if buff == GEO_HASTE_BUFF_ID then
+      -- Find strongest Geomancy Haste buff currently active
+      -- Find strongest buff in indi table
+      local strongest_effect
+      local strongest_potency
+      for effect in indi_active:it() do
+        local multiplier = effect.multipliers and math.min(effect.multipliers:sum(), GEOMANCY_JA_MULTIPLIER_MAX) or 1
+        local potency = math.floor(effect.potency * multiplier)
+        if strongest_effect == nil or strongest_potency < potency then
+          strongest_effect = effect
+          strongest_potency = potency
+        end
+      end
+      for effect in geo_active:it() do
+        local multiplier = effect.multipliers and math.min(effect.multipliers:sum(), GEOMANCY_JA_MULTIPLIER_MAX) or 1
+        local potency = math.floor(effect.potency * multiplier)
+        if strongest_effect == nil or strongest_potency < potency then
+          strongest_effect = effect
+          strongest_potency = potency
+        end
+      end
+      if strongest_effect then
+        -- Add potency to stats
+        stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + potency
+      else
+        -- Not tracking any indi- or geo- buffs, so just assume an effect
+        local effect = haste_triggers['Other'][1]
+        stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + effect.potency
+      end
+      break -- Can only have one active geomancy haste buff; no need to check the rest of the buffs
+    end
+  end
 
   -- Add songs potency to ma category
   for song in me.songs:it() do
+    -- Calculate final potency after multipliers
+    local multiplier = song.multipliers and math.min(song.multipliers:sum(), SONG_JA_MULTIPLIER_MAX) or 1
+    local potency = math.floor(song.potency * multiplier)
     -- Add potency to stats
-    stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + song.potency
+    stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + potency
   end
 
   -- Add samba potency to ja category
@@ -1117,6 +1207,33 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
   if id == 0x076 then -- Party buffs update; does not include self
     -- Triggers whenever someone joins/leaves party or changes zone
     parse_buffs(data)
+  elseif id == 0x0C8 then -- Alliance status update
+    -- Triggers after party/alliance members join/leave, after leadership changes,
+    -- and after someone changes zone (including yourself)
+    -- There are fields named 'ID 1' through 'ID 18', but they do not correspond to parties, they fill up sequentially
+    -- For example, a 2 person party + 1 person party (3 person alliance) will populate ID1-3.
+    -- Primary player always seems to be ID1.
+
+    local p = packets.parse('incoming', data)
+
+    -- Gather list of current member IDs
+    local current_ids = S{}
+    for i=1,18 do
+      local player_id = p['ID '..i]
+      if player_id == 0 then
+        break
+      else
+        current_ids:add(player_id)
+      end
+    end
+
+    -- Remove tracked members if their ID is not in this packet
+    for member in players:it() do
+      if member.id > 0 and not current_ids:contains(member.id) then
+        -- Player is no longer in party, so stop tracking them
+        remove_member(member.id)
+      end
+    end
   elseif id == 0xDF then -- char update
     local packet = packets.parse('incoming', data)
     if packet then
@@ -1142,12 +1259,16 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       end
     end
   elseif id == 0xDD then -- party member update
+    -- Includes alliance members
+    -- Triggers when someone joins/leaves party, or changes zone
     local packet = packets.parse('incoming', data)
     local name = packet['Name']
     local playerId = packet['ID']
     if name and playerId and playerId > 0 then
       -- print('PACKET: Party member update for '..name)
-      local member = get_member(playerId, name)
+      local member = get_member(playerId, name, true) -- Don't create in case it's an alliance member
+      if not member then return end
+
       local me = get_member(player.id, player.name)
 
       -- Update zone info

@@ -99,14 +99,14 @@ players = T{ -- Track jobs and relevant buffs of party members
 -- Items are removed when a Colure Active buff disappears from a party member
 indi_active = T{
   -- same as haste effects + some fields
-  -- [target_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, caster_id=num, target_id=num}
+  -- [target_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, multipliers=T{}, caster_id=num, target_id=num}
 }
 -- Track Geo- actions performed on party members
 -- Items are added when a Geo- spell is casted
 -- Items are removed when caster casts a new Geo- spell
 geo_active = T{
   -- same as haste effects + some fields
-  -- [caster_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, caster_id=num}
+  -- [caster_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, multipliers=T{}, caster_id=num}
 }
 
 -- Default settings
@@ -164,7 +164,6 @@ haste_caps = {
   },
 }
 
-
 -- Haste potencies are all the numerator portion of a fraction whose denominator is 1024.
 -- Ex. If Geo-Haste is 306, that means it's 306/1024, or ~29.9%.
 haste_triggers = T{
@@ -172,11 +171,11 @@ haste_triggers = T{
     [ 57] = {triggering_action='Haste', triggering_id=57, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='WhiteMagic', persists_thru_zoning=true, potency_base=150},
     [511] = {triggering_action='Haste II', triggering_id=511, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='WhiteMagic', persists_thru_zoning=true, potency_base=307},
     [478] = {triggering_action='Embrava', triggering_id=478, buff_name='Embrava', buff_id=228, haste_category='ma', trigger_category='Magic', trigger_sub_category='WhiteMagic', persists_thru_zoning=false, potency_base=266},
-    [771] = {triggering_action='Indi-Haste', triggering_id=771, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency_per_geomancy=12},
-    [801] = {triggering_action='Geo-Haste', triggering_id=801, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency_per_geomancy=12},
-    [417] = {triggering_action='Honor March', triggering_id=417, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=126, song_cap=4},
-    [420] = {triggering_action='Victory March', triggering_id=420, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=163, song_cap=8},
-    [419] = {triggering_action='Advancing March', triggering_id=419, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=108, song_cap=8},
+    [771] = {triggering_action='Indi-Haste', triggering_id=771, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency_per_geomancy=12, multipliers=T{}},
+    [801] = {triggering_action='Geo-Haste', triggering_id=801, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency_per_geomancy=12, multipliers=T{}},
+    [417] = {triggering_action='Honor March', triggering_id=417, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=126, song_cap=4, multipliers=T{}},
+    [420] = {triggering_action='Victory March', triggering_id=420, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=163, song_cap=8, multipliers=T{}},
+    [419] = {triggering_action='Advancing March', triggering_id=419, buff_name='March', buff_id=214, haste_category='ma', trigger_category='Magic', trigger_sub_category='BardSong', persists_thru_zoning=false, potency_base=108, song_cap=8, multipliers=T{}},
     [530] = {triggering_action='Refueling', triggering_id=530, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=102}, -- Exact potency unknown
     [710] = {triggering_action='Erratic Flutter', triggering_id=710, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=307},
     [661] = {triggering_action='Animating Wail', triggering_id=661, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Magic', trigger_sub_category='BlueMagic', persists_thru_zoning=false, potency_base=150}, -- Exact potency unknown
@@ -196,7 +195,8 @@ haste_triggers = T{
     [  1] = {triggering_action='Additional Effect Melee', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Melee', trigger_sub_category='', persists_thru_zoning=false, potency_base=150},
   },
   ['Other'] = {
-    [  0] = {triggering_action='Unknown', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Unknown', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=150, potency=150},
+    [  0] = {triggering_action='Unknown Haste', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Unknown', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=150, potency=150},
+    [  1] = {triggering_action='Unknown GEO Haste', triggering_id=0, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency=427},
   }
 }
 
@@ -339,6 +339,14 @@ trusts = L{
 	{ name = 'Yoran-Oran', job = 'WHM' },
 }
 
+STR = {
+  SOUL_VOICE = 'Soul Voice',
+  MARCATO = 'Marcato',
+  BOLSTER = 'Bolster',
+  EA = 'Ecliptic Attrition',
+  BOG = 'Blaze of Glory',
+}
+
 -- Haste Samba does not have an actual buff or triggering action but here's the relevant info:
 -- Upon melee action, action packet is sent and if the add_effect_animation == 23, you have haste samba benefit
 -- Counts as Job Ability haste. Base potency=51, potency increases by 10/1024
@@ -354,10 +362,15 @@ SLOW_SONG_DEBUFF_ID = 194
 SLOW_DEBUFF_IDS = S{13, 194}
 
 SOUL_VOICE_BUFF_ID = 52
+SOUL_VOICE_MULTIPLIER = 2
 MARCATO_BUFF_ID = 231
+MARCATO_MULTIPLIER = 1.5
 BOLSTER_BUFF_ID = 513
+BOLSTER_MULTIPLIER = 2
 ECLIPTIC_ATTRITION_BUFF_ID = 516
+ECLIPTIC_ATTRITION_MULTIPLIER = 1.25
 BOG_BUFF_ID = 569
+BOG_MULTIPLIER = 1.5
 COLURE_ACTIVE_ID = 612
 ENTRUST_BUFF_ID = 684
 OTHER_RELEVANT_BUFFS = S{52, 231, 513, 516, 569, 612, 684}
@@ -369,6 +382,9 @@ ECLIPTIC_ATTRITION_ACTION_ID = 347
 BOG_ACTION_ID = 350
 ENTRUST_ACTION_ID = 386
 OTHER_RELEVANT_ACTIONS = S{25, 284, 343, 347, 350, 386}
+
+GEOMANCY_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all geomancy buffs (max boost if Bolster + BoG + EA are all active)
+SONG_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all song buffs (max boost if SV + Marcato are all active)
 
 FINAL_APOC_ID = 21808
 SAMBA_DURATION = 9 -- Assume samba lasts 9 seconds on players after hitting a mob inflicted with Samba Daze

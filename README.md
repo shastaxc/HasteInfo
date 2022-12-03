@@ -97,9 +97,6 @@ ignored by HasteInfo.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO
-* Remove party members if they are not present in the party buff packet? Need to verify if out of zone members are excluded, or if they show no buffs. Need to avoid updating their buffs in this case too.
-* Account for Bolster, Blaze of Glory, and Ecliptic Attrition potency
-* Account for Marcato, Soul Voice potency
 * Account for debuff effects:
   - Battlefield Elegy (-256/1024)
   - Carnage Elegy (-512/1024)
