@@ -128,16 +128,16 @@ ignored by HasteInfo.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO
-* Fix UI updating DW Needed based on uncapped values rather than capped (actual)
+* Verify that BLU trait DW calculates properly when subjob lv == 0
+* Fix not properly picking up indi effects from other members
 * Update UI
   - Optional: show haste effect breakdown
 * Implement commands:
   - Toggle haste effect breakdown
-* Find a way to reset appropriate haste effects when leaving the Odyssey lobby and going into a boss fight.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
 * Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
 * Update player table when changing merits and job point allocations. Update DW if necessary.
-* Double check all buffs to see if they persist through zoning or not. Maybe they wear off when entering specific zones and not others?
+* Double check all buffs to see if they persist through zoning or not.
 * Verify that hiding UI while dead works.
 * Verify that debuff effects are properly detected and calculated:
   - Battlefield Elegy (-256/1024)

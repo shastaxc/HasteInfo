@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.5'
+_addon.version = '0.0.6'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -292,7 +292,7 @@ function parse_action(act, type)
     if table.find(me_target.actions, function(a) return a.param ~= 0 end) then
       -- Set potency
       haste_effect.potency = haste_effect.potency_base
-      if haste_effect.potency_per_merit then
+      if haste_effect.merit_job == player.main then
         haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_merit * player.merits[haste_effect.merit_name])
       end
       add_haste_effect(me, haste_effect)
@@ -702,7 +702,7 @@ function deduce_haste_effects(member, new_buffs)
               -- If Cornelia in party, assume it's her haste
               if p.name == 'Cornelia' then
                 haste_effect = table.copy(haste_triggers['Magic'][771])
-                haste_effect.potency = haste_effect.base_potency
+                haste_effect.potency = haste_effect.potency_base
                 haste_effect.caster_id = p.id
                 haste_effect.target_id = p.id
                 add_indi_effect(haste_effect)
@@ -725,7 +725,7 @@ function deduce_haste_effects(member, new_buffs)
             -- Assume that if anyone is Entrusted but not on indi-active table, that is the Indi-Haste (prefer self)
             if not haste_effect and geo_in_pt and entrusted_member then
               haste_effect = table.copy(haste_triggers['Magic'][771])
-              haste_effect.potency = haste_effect.base_potency * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+              haste_effect.potency = haste_effect.potency_base * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
               haste_effect.caster_id = geo_in_pt.id
               haste_effect.target_id = entrusted_member.id
               add_indi_effect(haste_effect)
@@ -735,7 +735,7 @@ function deduce_haste_effects(member, new_buffs)
             if not haste_effect and not entrusted_member and
                 (geo_in_pt and geo_in_pt.buffs and not geo_in_pt.buffs:contains(COLURE_ACTIVE_ID) and not geo_active[geo_in_pt.id]) then
               haste_effect = table.copy(haste_triggers['Magic'][801])
-              haste_effect.potency = haste_effect.base_potency * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+              haste_effect.potency = haste_effect.potency_base * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
               haste_effect.caster_id = geo_in_pt.id
               add_geo_effect(haste_effect)
             end
@@ -747,7 +747,7 @@ function deduce_haste_effects(member, new_buffs)
 
         if haste_effect and not haste_effect.potency then
           -- Enhance potency based on merits
-          if haste_effect.potency_per_merit and haste_effect.merit_name then
+          if haste_effect.potency_per_merit and haste_effect.merit_job == member.main and haste_effect.merit_name then
             -- If we're dealing with primary player, we can pull merit count; otherwise assume max merits (5)
             local merit_count = member.id == player.id and player.merits[haste_effect.merit_name] or 5
             haste_effect.potency = haste_effect.potency_base + (haste_effect.potency_per_merit * merit_count)
@@ -809,6 +809,7 @@ end
 -- Update tracked songs
 -- Note: song expirations can vary by +/-1 second between packets
 function update_songs(member, buffs)
+  if member.id ~= player.id then return end
   -- Format and filter to only Marches
   local new_buffs = format_buffs(buffs):filter(function(buff)
     return buff.id == 214
@@ -1330,12 +1331,6 @@ function calculate_stats()
     t['uncapped']['fraction'] = math.min(t['uncapped']['fraction'], 1024)
   end
 
-  -- Calculate total haste
-  stats['haste']['total']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction']
-                                                  + stats['haste']['ja']['uncapped']['fraction']
-                                                  + stats['haste']['eq']['uncapped']['fraction']
-                                                  - stats['haste']['debuff']['uncapped']['fraction']
-
   -- Calculate percent values
   for haste_cat, t in pairs(stats['haste']) do
     -- Get uncapped fraction
@@ -1350,6 +1345,16 @@ function calculate_stats()
     local capped_perc = math.min(uncapped_perc, haste_caps[haste_cat]['percent'])
     t['actual']['percent'] = capped_perc
   end
+  
+  -- Calculate total haste (must use actual values with category caps)
+  local ma_total = math.min(stats.haste.ma.uncapped.fraction
+                            - stats.haste.debuff.uncapped.fraction,
+                            haste_caps.ma.fraction)
+  stats.haste.total.uncapped.fraction = ma_total + stats.haste.ja.actual.fraction + stats.haste.eq.actual.fraction
+  stats.haste.total.actual.fraction = math.min(stats.haste.total.uncapped.fraction, haste_caps.total.fraction)
+  
+  stats.haste.total.uncapped.percent = stats.haste.total.uncapped.fraction / 1024 * 100 or 0
+  stats.haste.total.actual.percent = math.min(stats.haste.total.uncapped.percent, haste_caps.total.percent)
 
   -- Determine dual wield needed
   if stats.dual_wield.traits == 0 then -- Unable to dual wield weapons at all
