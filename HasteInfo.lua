@@ -337,12 +337,12 @@ function parse_action(act, type)
           end
     
           -- Determine potency (each song bonus point adds 10% of base potency)
-          haste_effect.potency = math.floor(haste_effect.potency_base + (haste_effect.potency_base * 0.1 * song_bonus))
+          haste_effect.potency = math.floor(haste_effect.potency_base * (1 + (0.1 * song_bonus)))
 
           -- Determine JA multipliers to potency
           haste_effect.multipliers = T{}
-          haste_effect.multipliers['Soul Voice'] = caster.buffs:contains(SOUL_VOICE_BUFF_ID) and SOUL_VOICE_MULTIPLIER or 1
-          haste_effect.multipliers['Marcato'] = caster.buffs:contains(MARCATO_BUFF_ID) and MARCATO_MULTIPLIER or 1
+          haste_effect.multipliers[STR.SOUL_VOICE] = caster.buffs:with('id', SOUL_VOICE_BUFF_ID) and SOUL_VOICE_MULTIPLIER or 1
+          haste_effect.multipliers[STR.MARCATO] = caster.buffs:with('id', MARCATO_BUFF_ID) and MARCATO_MULTIPLIER or 1
 
           haste_effect.received_at = now()
           target_member.songs[act.param] = haste_effect
@@ -391,8 +391,8 @@ function parse_action(act, type)
       
       -- Determine JA boosts to potency
       -- Bolster and Blaze of Glory both apply to the bubble, but its multiplier maxes at 2x
-      local bolster_multiplier = caster.buffs:contains(BOLSTER_BUFF_ID) and BOLSTER_MULTIPLIER or 1
-      local bog_multiplier = caster.buffs:contains(BOG_BUFF_ID) and BOG_MULTIPLIER or 1
+      local bolster_multiplier = caster.buffs:with('id', BOLSTER_BUFF_ID) and BOLSTER_MULTIPLIER or 1
+      local bog_multiplier = caster.buffs:with('id', BOG_BUFF_ID) and BOG_MULTIPLIER or 1
 
       -- Also, add to the indi- or geo- table
       if haste_effect.triggering_action:startswith('Indi-') then
@@ -551,6 +551,13 @@ function remove_zoned_effects(member)
       remove_haste_effect(member, effect.buff_id)
     end
   end
+
+  -- Remove songs that don't persist through zoning
+  for song in member.songs:it() do
+    if not song.persists_thru_zoning then
+      member.songs:remove(song.triggering_id)
+    end
+  end
   
   -- If player had an Indi spell on them, stop tracking it
   remove_indi_effect(member.id)
@@ -605,10 +612,9 @@ function reset_self_buffs()
         or OTHER_RELEVANT_BUFFS:contains(buff.id)
   end)
   -- Add received_at param
-  current_buffs = current_buffs:map(function(buff)
+  for buff in current_buffs:it() do
     buff.received_at = now()
-    return buff
-  end)
+  end
   deduce_haste_effects(me, current_buffs)
   me.buffs = current_buffs
 end
@@ -676,8 +682,9 @@ function deduce_haste_effects(member, new_buffs)
           -- We only care about songs for main player
           if member.id ~= player.id then
             skip = true
+          else
+            update_songs(member, new_buffs)
           end
-          update_songs(member, new_buffs)
         elseif buff.id == 580 then -- Geomancy
           -- Get haste effect from indi- and geo- tables
           local found_indi = indi_active:with('buff_id', buff.id)
@@ -865,6 +872,9 @@ function update_songs(member, buffs)
 
       member.songs[song.triggering_id] = song
     end
+    for buff in new_buffs:it() do
+      buff.paired = nil
+    end
   elseif count_diff < 0 then -- Lost song(s); timed out, dispelled, or overwritten
     -- Two ways to find matches:
     -- 1) expirations match within +/-1
@@ -919,6 +929,14 @@ function update_songs(member, buffs)
 
       member.songs[song.triggering_id] = song
     end
+    
+    -- Clean up
+    for new_song in new_buffs:it() do
+      new_song.paired = nil
+    end
+    for old_song in my_song_copy:it() do
+      old_song.paired = nil
+    end
   elseif count_diff > 0 then -- Gained song(s) after having missed the action packet
     local gained_songs = L{}
 
@@ -951,22 +969,26 @@ function update_songs(member, buffs)
 
     -- Update song list with new expiration times
     for old_song in my_song_copy:it() do
+      old_song.paired = nil
       member.songs[old_song.triggering_id].expiration = old_song.expiration
+    end
+    for new_song in new_buffs:it() do
+      new_song.paired = nil
     end
 
     -- If there are gained songs, try to use a smart deduction to figure out its trigger action
-    local song_assumption_priority = song_assumption_priority:copy()
+    local song_priority = song_assumption_priority:copy()
 
     -- Gained songs should already be sorted by shortest duration first
     for song in gained_songs:it() do
-      for assumed_song in song_assumption_priority:it() do
+      for assumed_song in song_priority:it() do
         -- If assumed song not already tracked, add it and include instance specific attributes
         if not member.songs[assumed_song.triggering_id] then
-          local haste_effect = table.copy(assumed_song)
+          local haste_effect = assumed_song
           haste_effect.received_at = now()
           haste_effect.expiration = song.expiration
           -- Set potency (assume max)
-          haste_effect.potency = math.floor(haste_effect.potency_base + (haste_effect.potency_base * 0.1 * haste_effect.song_cap))
+          haste_effect.potency = math.floor(haste_effect.potency_base * (1 + (0.1 * haste_effect.song_cap)))
           member.songs[haste_effect.triggering_id] = haste_effect
           break
         end
@@ -1019,8 +1041,18 @@ function reconcile_buff_update(member, new_buffs)
     end
   end
 
+  -- Remove pairing markers
+  for buff in new_buffs:it() do
+    buff.paired = nil
+  end
+  for old_buff in old_buffs:it() do
+    old_buff.paired = nil
+  end
+
   -- Resolve new buffs' haste effects and other special handling
   for buff in gained_buffs:it() do
+    -- Clean up
+    buff.paired = nil
     if buff.id == BOLSTER_BUFF_ID then -- Resolve Bolster effect on current Indi spell potency
       update_geomancy_effect_multiplier(member.id, STR.BOLSTER, true)
     elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve EA effect on current Geo spell potency
@@ -1032,7 +1064,10 @@ function reconcile_buff_update(member, new_buffs)
   
   -- Resolve lost buffs' haste effects and other special handling
   for buff in lost_buffs:it() do
-    if buff.id == BOLSTER_BUFF_ID then -- Resolve the effect of losing Bolster
+    -- Clean up
+    buff.paired = nil
+    if buff.id == SONG_HASTE_BUFF_ID then
+    elseif buff.id == BOLSTER_BUFF_ID then -- Resolve the effect of losing Bolster
       update_geomancy_effect_multiplier(member.id, STR.BOLSTER, false)
     elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve the effect of losing EA
       update_geomancy_effect_multiplier(member.id, STR.EA, false)
@@ -1051,6 +1086,7 @@ function reconcile_buff_update(member, new_buffs)
   end
 
   -- Update buff list to new list
+  update_songs(member, new_buffs)
   member.buffs = new_buffs
   report()
 end
@@ -1086,6 +1122,13 @@ function update_geomancy_effect_multiplier(caster_id, multiplier_name, is_gained
   end
 end
 
+function add_multipliers(m1, m2)
+  if not m1 then m1 = 1 end
+  if not m2 then m2 = 1 end
+  m1 = math.max(m1 - 1, 0)
+  m2 = math.max(m2 - 1, 0)
+  return m1 + m2 + 1
+end
 
 -------------------------------------------------------------------------------
 -- UI Functions
@@ -1120,15 +1163,15 @@ function update_ui_text(force_update)
   if not force_update and not ui:visible() then return end
 
   -- Get stats to display and report
-  local dw_needed = tostring(stats.dual_wield.actual_needed)
+  local dw_needed = stats.dual_wield.actual_needed > -1 and tostring(stats.dual_wield.actual_needed) or 'N/A'
   if stats.dual_wield.actual_needed == 0 then
     -- Change to green if capped
-    dw_needed = '\\cs(0,255,0)'..dw_needed..'\\cs(255,255,255)'
+    dw_needed = inline_green..dw_needed..inline_white
   end
   local total_haste = tostring(settings.show_fractions and stats.haste.total.actual.fraction or string.format('%.1f', stats.haste.total.actual.percent))
   if stats.haste.total.actual.fraction == haste_caps.total.fraction then
     -- Change to green if capped
-    total_haste = '\\cs(0,255,0)'..total_haste..'\\cs(255,255,255)'
+    total_haste = inline_green..total_haste..inline_white
   end
   local perc = settings.show_fractions and '' or '%'
   local dw_traits = ''
@@ -1140,9 +1183,21 @@ function update_ui_text(force_update)
   if settings.summary_mode == 2 then
     dw_traits = stats.dual_wield.traits
     ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format('%.1f', stats.haste.ma.actual.percent)
+    if stats.haste.ma.actual.fraction == haste_caps.ma.fraction then
+      ma_haste = inline_green..ma_haste..inline_white
+    end
     ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format('%.1f', stats.haste.ja.actual.percent)
+    if stats.haste.ja.actual.fraction == haste_caps.ja.fraction then
+      ja_haste = inline_green..ja_haste..inline_white
+    end
     eq_haste = settings.show_fractions and stats.haste.eq.actual.fraction or string.format('%.1f', stats.haste.eq.actual.percent)
+    if stats.haste.eq.actual.fraction == haste_caps.eq.fraction then
+      eq_haste = inline_green..eq_haste..inline_white
+    end
     debuff = settings.show_fractions and stats.haste.debuff.actual.fraction or string.format('%.1f', stats.haste.debuff.actual.percent)
+    if stats.haste.debuff.actual.fraction < 0 then
+      debuff = inline_red..'-'..debuff..inline_white
+    end
   end
 
   -- Create text line-by-line
@@ -1161,7 +1216,7 @@ function update_ui_text(force_update)
     str = str..' | Haste: '..total_haste..perc
     str = str..(settings.show_fractions and '/1024' or '')
     if settings.summary_mode == 2 then
-      str = str..' ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ, -'..debuff..perc..' Debuff)'
+      str = str..' ('..ma_haste..perc..' MA, '..ja_haste..perc..' JA, '..eq_haste..perc..' EQ, '..debuff..perc..' Debuff)'
     end
     lines:append(str)
   end
@@ -1228,7 +1283,7 @@ function calculate_stats()
       local strongest_effect
       local strongest_potency
       for effect in indi_active:it() do
-        local multiplier = effect.multipliers and math.min(effect.multipliers:sum(), GEOMANCY_JA_MULTIPLIER_MAX) or 1
+        local multiplier = effect.multipliers and math.min(effect.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
         local potency = math.floor(effect.potency * multiplier)
         if strongest_effect == nil or strongest_potency < potency then
           strongest_effect = effect
@@ -1236,7 +1291,7 @@ function calculate_stats()
         end
       end
       for effect in geo_active:it() do
-        local multiplier = effect.multipliers and math.min(effect.multipliers:sum(), GEOMANCY_JA_MULTIPLIER_MAX) or 1
+        local multiplier = effect.multipliers and math.min(effect.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
         local potency = math.floor(effect.potency * multiplier)
         if strongest_effect == nil or strongest_potency < potency then
           strongest_effect = effect
@@ -1258,7 +1313,7 @@ function calculate_stats()
   -- Add songs potency to ma category
   for song in me.songs:it() do
     -- Calculate final potency after multipliers
-    local multiplier = song.multipliers and math.min(song.multipliers:sum(), SONG_JA_MULTIPLIER_MAX) or 1
+    local multiplier = song.multipliers and math.min(song.multipliers:reduce(add_multipliers, 1), SONG_JA_MULTIPLIER_MAX) or 1
     local potency = math.floor(song.potency * multiplier)
     -- Add potency to stats
     stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + potency
@@ -1300,9 +1355,9 @@ function calculate_stats()
   if stats.dual_wield.traits == 0 then -- Unable to dual wield weapons at all
     stats.dual_wield.total_needed = -1
     stats.dual_wield.actual_needed = -1
-  else
-    stats.dual_wield.total_needed = math.max(math.ceil((1 - (0.2 / ( (1024 - stats.haste.total.actual.fraction) / 1024))) * 100), 0)
-    stats.dual_wield.actual_needed = stats.dual_wield.total_needed - stats.dual_wield.traits
+  else -- Never allow to be negative
+    stats.dual_wield.total_needed =  math.max(math.ceil((1 - (0.2 / ( (1024 - stats.haste.total.actual.fraction) / 1024))) * 100), 0)
+    stats.dual_wield.actual_needed = math.max(stats.dual_wield.total_needed - stats.dual_wield.traits, 0)
   end
 end
 
@@ -1753,7 +1808,11 @@ windower.register_event('addon command', function(cmd, ...)
       settings:save()
       update_ui_text()
     elseif 'report' == cmd then
-      report(true)
+      local skip_recalculate = true
+      if args[1] == 'false' then
+        skip_recalculate = false
+      end
+      report(skip_recalculate)
     elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
       -- Pause updating UI and sending reports, but keep updating tracked buffs and haste effects
       reports_paused = true

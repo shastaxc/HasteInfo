@@ -75,7 +75,7 @@ stats = default_stats:copy(true)
 
 players = T{ -- Track jobs and relevant buffs of party members
   --[[
-  [id] = {id=num, name=str, main=str, main_lv=num, sub=str, sub_lv=num, samba=table, songs=table, haste_effects=table, buffs=table}
+  [id] = {id=num, name=str, main=str, main_lv=num, sub=str, sub_lv=num, samba=table, songs=table, haste_effects=table, buffs=list}
   songs = T{
     [triggering_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma, potency=num, received_at=num, expiration=num}
   }
@@ -86,10 +86,8 @@ players = T{ -- Track jobs and relevant buffs of party members
   haste_effects = T{
     [buff_id] = {triggering_action=str, triggering_id=num, buff_name=str, buff_id=num, haste_category=ma|ja, potency=num}
   }
-  buffs = {
-    [1]=num
-    ...
-    [32]=num
+  buffs = L{
+    {id=num}
   }
 
   Ex:
@@ -199,8 +197,8 @@ haste_triggers = T{
     [825] = {triggering_action='Geo-Slow', triggering_id=825, buff_name='Slow', buff_id=565, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=152}, -- Assume enemies have base potency
   },
   ['Job Ability'] = {
-    [595] = {triggering_action='Hastega', triggering_id=595, buff_name='Haste', buff_id=33, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='BloodPactWard', persists_thru_zoning=false, potency_base=153},
-    [602] = {triggering_action='Hastega II', triggering_id=602, buff_name='Haste', buff_id=33, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='BloodPactWard', persists_thru_zoning=false, potency_base=307}, -- Exact potency unknown
+    [595] = {triggering_action='Hastega', triggering_id=595, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Job Ability', trigger_sub_category='BloodPactWard', persists_thru_zoning=true, potency_base=153},
+    [602] = {triggering_action='Hastega II', triggering_id=602, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Job Ability', trigger_sub_category='BloodPactWard', persists_thru_zoning=true, potency_base=307}, -- Exact potency unknown
     [173] = {triggering_action='Hasso', triggering_id=173, buff_name='Hasso', buff_id=353, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='', persists_thru_zoning=false, potency_base=103}, -- Exact potency unknown
     [80] = {triggering_action='Spirit Link', triggering_id=80, buff_name='N/A', buff_id=0, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='', persists_thru_zoning=false, potency_base=0, potency_per_merit=21, merit_name='empathy'}, -- Exact potency unknown
     [51] = {triggering_action='Last Resort', triggering_id=51, buff_name='Last Resort', buff_id=64, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='', persists_thru_zoning=false, potency_base=150, potency_per_merit=21, merit_name='desperate_blows'}, -- Exact potency unknown
@@ -484,3 +482,8 @@ chat_yellow = string.char(0x1F, 036)
 chat_d_blue = string.char(0x1F, 207)
 chat_pink = string.char(0x1E, 5)
 chat_l_blue = string.char(0x1E, 6)
+
+inline_white = '\\cs(255,255,255)'
+inline_red = '\\cs(255,0,0)'
+inline_green = '\\cs(0,255,0)'
+inline_blue = '\\cs(0,0,255)'
