@@ -128,7 +128,6 @@ ignored by HasteInfo.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO
-* Fix players not adding/removing when joining/leaving party
 * Update UI
   - Optional: show haste effect breakdown
 * Implement commands:
