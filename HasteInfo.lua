@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.7'
+_addon.version = '0.0.8'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1545,10 +1545,21 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     if order == 9 then
       local buffs = T{}
 
+      -- If you have no buffs, the buffs table will be empty (printed like {})
+      -- Sometimes, such as when zoning, it will give you a full 32 buff list
+      -- where every id == 0. That packet can be ignored, to avoid dumping buffs when
+      -- you really shouldn't. Mark it as a dud and don't process.
+      local is_dud
+
       -- read ids
       for i = 1, 32 do
         local index = 0x09 + ((i-1) * 0x02)
         local status_i = data:unpack('H', index)
+
+        if i == 1 and status_i == 0 then
+          is_dud = true
+          break
+        end
 
         if status_i ~= 255 then
           buffs[i] = { id = status_i }
@@ -1563,11 +1574,13 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
           buffs[i].expiration = from_server_time(expiration)
         end
       end
-
-      local me = get_member(player.id, player.name)
-
-      -- Reconcile these buffs with tracked haste effects and actions; resolve discrepancies using assumed values
-      reconcile_buff_update(me, buffs)
+      
+      if not is_dud then
+        local me = get_member(player.id, player.name)
+  
+        -- Reconcile these buffs with tracked haste effects and actions; resolve discrepancies using assumed values
+        reconcile_buff_update(me, buffs)
+      end
     end
   elseif id == 0x037 then
     -- update clock offset
