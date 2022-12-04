@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.3'
+_addon.version = '0.0.4'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -19,6 +19,40 @@ config = require('config')
 texts = require('texts')
 
 require('statics')
+
+-- Modify the packets field mapping for incoming packet 0x0DD
+-- includes more fields than Windower does by default
+do -- Update fields internally.
+  packets.raw_fields.incoming[0x0DD] = L{
+        {ctype='unsigned int',      label='ID',                 fn=id},             -- 04
+        {ctype='unsigned int',      label='HP'},                                    -- 08
+        {ctype='unsigned int',      label='MP'},                                    -- 0C
+        {ctype='unsigned int',      label='TP',                 fn=percent},        -- 10
+        {ctype='bit[2]',            label='Party Number'},                          -- 14:0
+        {ctype='bit[1]',            label='Party Leader',       fn=bool},           -- 14:2
+        {ctype='bit[1]',            label='Alliance Leader',    fn=bool},           -- 14:3
+        {ctype='bit[4]',            label='Is Self',            fn=bool},           -- 14:4
+        {ctype='unsigned char',     label='_unknown1'},                             -- 15
+        {ctype='unsigned short',    label='_unknown2'},                             -- 16
+        {ctype='unsigned short',    label='Index',              fn=index},          -- 18
+        {ctype='unsigned char',     label='Party Index'},                           -- 1A
+        {ctype='unsigned char',     label='_unknown3'},                             -- 1B
+        {ctype='unsigned char',     label='_unknown4'},                             -- 1C
+        {ctype='unsigned char',     label='HP%',                fn=percent},        -- 1D
+        {ctype='unsigned char',     label='MP%',                fn=percent},        -- 1E
+        {ctype='unsigned char',     label='_unknown5'},                             -- 1F
+        {ctype='unsigned short',    label='Zone',               fn=zone},           -- 20
+        {ctype='unsigned char',     label='Main Job',           fn=job},            -- 22
+        {ctype='unsigned char',     label='Main Job Level'},                        -- 23
+        {ctype='unsigned char',     label='Sub Job',            fn=job},            -- 24
+        {ctype='unsigned char',     label='Sub Job Level'},                         -- 25
+        {ctype='unsigned char',     label='Master Level'},                          -- 26
+        {ctype='boolbit',           label='Master Breaker'},                        -- 27
+        {ctype='bit[7]',            label='_junk2'},                                -- 27
+        {ctype='char*',             label='Name'},                                  -- 28
+    }
+end
+
 
 -------------------------------------------------------------------------------
 -- Initialization
@@ -98,30 +132,73 @@ function add_member(id, name)
   return players[id]
 end
 
+function get_placeholder_id(name)
+
+end
+
 function get_member(id, name, dontCreate)
-  local foundMember = players[id]
-  if foundMember then
-    if name and foundMember.name ~= name then
-      foundMember.name = name
-    end
-    return foundMember
-  else
+  if not id and not name then return end
+
+  -- Update member if necessary. Possible scenarios:
+  -- ID given, name given
+    -- ID match found, name match found. Return.
+    -- ID match found, no name match found. Update name and ID for currently-tracked entry. Return.
+    -- ID match not found, name match found. Update name and ID for currently-tracked entry. Return.
+    -- ID match not found, name match not found. Add member. Return.
+  -- ID given, no name given
+    -- ID match found. Return.
+    -- ID match not found. Add member. Return.
+  -- no ID given, name given
+    -- Name match found. Return.
+    -- Name match not found. Add member. Return.
+  if id and name then
+    local foundById = players[id]
     local foundByName = players:with('name', name)
-    if foundByName then -- try to match by name if no ID match
-      -- This situation may happen when resummoning trusts or if member was out of zone when first detected
-      -- If name matches, keep the higher ID
-      local found_id = foundByName.id
-      if id > found_id then
-        players[id] = table.copy(foundByName)
-        players[id].id = id
-        players[found_id] = nil
-        return players[id]
-      else
-        return foundByName
+    if foundById and foundByName then
+      return foundById
+    elseif (foundById and not foundByName)
+        or (not foundById and foundByName) then
+      -- Copy current entry data but update name and ID
+      local found_entry
+      if foundById then
+        found_entry = table.copy(foundById)
+        -- Nullify previous entry
+        players[foundById.id] = nil
+      elseif foundByName then
+        found_entry = table.copy(foundByName)
+        -- Nullify previous entry
+        players[foundByName.id] = nil
       end
+      -- Determine which if current or incoming entry has correct id
+      if id > found_entry.id then
+        -- New entry has correct namd/id
+        found_entry.id = id
+      end
+      -- Make sure name is populated on new entry
+      if not found_entry.name or found_entry.name == '' then
+        found_entry.name = name
+      end
+      players[found_entry.id] = found_entry
+      return players[found_entry.id]
+    elseif not foundById and not foundByName and not dontCreate then
+      return add_member(id, name)
+    end
+  elseif id and not name then
+    local foundById = players[id]
+    if foundById then
+      return foundById
     elseif not dontCreate then
       return add_member(id, name)
     end
+  elseif not id and name then
+    local foundByName = players:with('name', name)
+    if foundByName then
+      return foundByName
+    elseif not dontCreate then
+      return add_member(id, name)
+    end
+  else
+    return
   end
 end
 
@@ -146,13 +223,13 @@ end
 function update_job_from_packet(member, packet)
   local is_self = member.id == player.id
 
-  local main_job = packet['Main job']
+  local main_job = packet['Main job'] or packet['Main Job']
   if not main_job then return end -- This can happen when changing jobs
   main_job = res.jobs[main_job].ens
-  local main_job_lv = packet['Main job level']
-  local sub_job =  packet['Sub job']
+  local main_job_lv = packet['Main job level'] or packet['Main Job Level']
+  local sub_job =  packet['Sub job'] or packet['Sub Job']
   sub_job = res.jobs[sub_job].ens
-  local sub_job_lv = packet['Sub job level']
+  local sub_job_lv = packet['Sub job level'] or packet ['Sub Job Level']
 
   if main_job == 'NON' and not is_self then
     -- Player is out of zone, assume their job has not changed
@@ -401,14 +478,6 @@ function parse_buffs(data)
       end)
         
       reconcile_buff_update(member, new_buffs)
-    end
-  end
-
-  -- Thanks to this packet update, we should have all party members with IDs in the table.
-  -- If there were previous entries with placeholder IDs, dump them. They will never reconcile.
-  for member in players:it() do
-    if member.id < 0 then
-      remove_member(member.id)
     end
   end
 end
@@ -893,11 +962,12 @@ function update_songs(member, buffs)
       for assumed_song in song_assumption_priority:it() do
         -- If assumed song not already tracked, add it and include instance specific attributes
         if not member.songs[assumed_song.triggering_id] then
-          assumed_song.received_at = now()
-          assumed_song.expiration = song.expiration
+          local haste_effect = table.copy(assumed_song)
+          haste_effect.received_at = now()
+          haste_effect.expiration = song.expiration
           -- Set potency (assume max)
           haste_effect.potency = math.floor(haste_effect.potency_base + (haste_effect.potency_base * 0.1 * haste_effect.song_cap))
-          member.songs[assumed_song.triggering_id] = assumed_song
+          member.songs[haste_effect.triggering_id] = haste_effect
           break
         end
       end
@@ -1303,80 +1373,97 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
   elseif id == 0x0C8 then -- Alliance status update
     -- Triggers after party/alliance members join/leave, after leadership changes,
     -- and after someone changes zone (including yourself)
-    -- There are fields named 'ID 1' through 'ID 18', but they do not correspond to parties, they fill up sequentially
-    -- For example, a 2 person party + 1 person party (3 person alliance) will populate ID1-3.
-    -- Primary player always seems to be ID1.
+    -- Includes 'ID 1' through 'ID 18' for all alliance members, in no particular order
+    -- This update comes in just before a bunch of 0x0DD packets, and we can use this list
+    -- to determine if those subsequent 0x0DD updates are for current, new, or leaving members.
 
-    local p = packets.parse('incoming', data)
-
-    -- Gather list of current member IDs
-    local current_ids = S{}
+    local packet = packets.parse('incoming', data)
+    
+    current_alliance_ids = S{}
+    -- Update tracked alliance members
     for i=1,18 do
-      local player_id = p['ID '..i]
-      if player_id == 0 then
-        break
-      else
-        current_ids:add(player_id)
+      local player_id = packet['ID '..i]
+      if player_id > 0 then -- ID == 0 is empty party slot
+        current_alliance_ids:add(player_id)
       end
     end
-
-    -- Remove tracked members if their ID is not in this packet
+  
+    -- Remove tracked members if their ID is not found
     for member in players:it() do
-      if member.id > 0 and not current_ids:contains(member.id) then
-        -- Player is no longer in party, so stop tracking them
+      -- If ID is not a placeholder, but not in the party ids list, remove them
+      if member.id >= 0 and not current_alliance_ids:contains(member.id) then
         remove_member(member.id)
       end
     end
-  elseif id == 0xDF then -- char update
+  elseif id == 0x0DF then -- char update; importantly contains job info, only for self
     local packet = packets.parse('incoming', data)
-    if packet then
-      local playerId = packet['ID']
-      if playerId and playerId > 0 then
-        -- print('PACKET: Char update for player ID: '..playerId)
-        local member = get_member(playerId, nil)
-        local me = get_member(player.id, player.name)
-  
-        -- Update zone info
-        local new_zone = packet['Zone']
-        local old_zone = member.zone
-        if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
-          member.zone = new_zone
-          if member.id ~= player.id and old_zone == me.zone then
-            remove_zoned_effects(member)
-          end
-        end
-        
-        update_job_from_packet(member, packet)
-      else
-        print('Char update: ID not found.')
-      end
-    end
-  elseif id == 0xDD then -- party member update
-    -- Includes alliance members
-    -- Triggers when someone joins/leaves party, or changes zone
-    local packet = packets.parse('incoming', data)
-    local name = packet['Name']
+
     local playerId = packet['ID']
-    if name and playerId and playerId > 0 then
-      -- print('PACKET: Party member update for '..name)
-      local member = get_member(playerId, name, true) -- Don't create in case it's an alliance member
-      if not member then return end
+    if playerId and playerId > 0 then
+      -- print('PACKET: Char update for player ID: '..playerId)
+      local member = get_member(playerId, nil)
 
-      local me = get_member(player.id, player.name)
+      update_job_from_packet(member, packet)
+    else
+      print('Char update: ID not found.')
+    end
+  elseif id == 0x0DD then -- party member update; importantly contains job info
+    -- Includes alliance members
+    -- Triggers when someone joins/leaves party, or changes zone (even if they are out of zone)
+    -- Party Number always 0 if not in alliance
+    -- Party Number is 1-3 if person joining (or currently in) party/alliance
+    -- Party Number is 0 if person is leaving a party/alliance
+    -- Due to this discrepancy, we cannot tell if a person is leaving or joining unless we are
+    -- in an alliance.
 
+    -- If Party Number == 2 or 3, always remove them.
+    -- If Party Number == 1 we will always add/update them because they are in our party in an alliance.
+    -- If Party Number == 0 and we are in alliance, remove them.
+    -- If Party Number == 0 and not in alliance and not in current_alliance_ids remove them.
+    -- If Party Number == 0 and not in alliance and IS in current_alliance_ids, add/update them.
+
+    local packet = packets.parse('incoming', data)
+    
+    local party_number = packet['Party Number']
+    local party_info = windower.ffxi.get_party()
+    local member
+
+    if party_info then -- If we can't get alliance info, we can't do anything but update jobs and zone
+      local in_alliance = party_info.alliance_leader ~= nil
+  
+      -- Filter out unwanted cases
+      if party_number == 2 or party_number == 3 then
+        return
+      elseif (party_number == 0 and in_alliance) or
+          (party_number == 0 and not in_alliance and not current_alliance_ids:contains(packet['ID'])) then
+        member = get_member(packet['ID'], packet['Name'], true)
+        if member then
+          remove_member(member.id)
+        end
+        return
+      end
+
+      -- If we made it past those filters, add/update member
+      member = get_member(packet['ID'], packet['Name'])
+    else
+      member = get_member(packet['ID'], packet['Name'], true)
+    end
+
+    if member then
       -- Update zone info
       local new_zone = packet['Zone']
       local old_zone = member.zone
       if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
         member.zone = new_zone
-        if member.id ~= player.id and old_zone == me.zone then
+        
+        -- If player just left zone that main player is in, reset buffs
+        local me = get_member(player.id, player.name)
+        if me and member.id ~= me.id and old_zone == me.zone then
           remove_zoned_effects(member)
         end
       end
       
       update_job_from_packet(member, packet)
-    else
-      print('Party update: name and/or ID not found.')
     end
   elseif id == 0x063 then -- Set Update packet
     -- Sends buff ID and expiration for all of main player's current buffs
@@ -1677,7 +1764,6 @@ windower.register_event('addon command', function(cmd, ...)
       ui:color(255,255,255)
       update_ui_text()
     elseif 'test' == cmd then
-      table.vprint(players)
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
