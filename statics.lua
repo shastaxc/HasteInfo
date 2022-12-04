@@ -149,6 +149,8 @@ defaults = {
   }
 }
 
+NAME_MAX_CHAR_COUNT = 16
+
 -- Fraction caps are all numerators. The denominator for each is 1024.
 haste_caps = {
   ['total'] = {
@@ -234,7 +236,7 @@ STR = {
 -- Upon melee action, action packet is sent and if the add_effect_animation == 23, you have haste samba benefit
 -- Counts as Job Ability haste. Base potency=51, potency increases by 10/1024
 -- Merit ID is 1538
-samba_stats = {potency_base=51, potency_per_merit=10, merit_id=1538, merit_name='haste_samba_effect', animation_id=23}
+samba_stats = {triggering_action='Haste Samba', buff_id=370, potency_base=51, potency_per_merit=10, merit_id=1538, merit_name='haste_samba_effect', animation_id=23}
 
 SONG_HASTE_BUFF_ID = 214
 GEO_HASTE_BUFF_ID = 580

@@ -128,13 +128,8 @@ ignored by HasteInfo.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO
-* Verify that BLU trait DW calculates properly when subjob lv == 0
-* Update UI
-  - Optional: show haste effect breakdown
-* Implement commands:
-  - Toggle haste effect breakdown
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
-* Detect job for party members (if not already informed via update packets) by detecting actions that only 1 job could perform.
+* Detect job for anonymous party members by detecting actions that only 1 job could perform.
 * Update player table when changing merits and job point allocations. Update DW if necessary.
 * Double check all buffs to see if they persist through zoning or not.
 * Verify that hiding UI while dead works.

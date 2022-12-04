@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.8'
+_addon.version = '0.0.9'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1176,16 +1176,18 @@ function update_ui_text(force_update)
   -- No point in setting UI text if it's not visible
   if not force_update and not ui:visible() then return end
 
+  local default_color = reports_paused and inline_red or inline_white
+
   -- Get stats to display and report
   local dw_needed = stats.dual_wield.actual_needed > -1 and tostring(stats.dual_wield.actual_needed) or 'N/A'
   if stats.dual_wield.actual_needed == 0 then
     -- Change to green if capped
-    dw_needed = inline_green..dw_needed..inline_white
+    dw_needed = inline_green..dw_needed..default_color
   end
   local total_haste = tostring(settings.show_fractions and stats.haste.total.actual.fraction or string.format('%.1f', stats.haste.total.actual.percent))
   if stats.haste.total.actual.fraction == haste_caps.total.fraction then
     -- Change to green if capped
-    total_haste = inline_green..total_haste..inline_white
+    total_haste = inline_green..total_haste..default_color
   end
   local perc = settings.show_fractions and '' or '%'
   local dw_traits = ''
@@ -1198,19 +1200,19 @@ function update_ui_text(force_update)
     dw_traits = stats.dual_wield.traits
     ma_haste = settings.show_fractions and stats.haste.ma.actual.fraction or string.format('%.1f', stats.haste.ma.actual.percent)
     if stats.haste.ma.actual.fraction == haste_caps.ma.fraction then
-      ma_haste = inline_green..ma_haste..inline_white
+      ma_haste = inline_green..ma_haste..default_color
     end
     ja_haste = settings.show_fractions and stats.haste.ja.actual.fraction or string.format('%.1f', stats.haste.ja.actual.percent)
     if stats.haste.ja.actual.fraction == haste_caps.ja.fraction then
-      ja_haste = inline_green..ja_haste..inline_white
+      ja_haste = inline_green..ja_haste..default_color
     end
     eq_haste = settings.show_fractions and stats.haste.eq.actual.fraction or string.format('%.1f', stats.haste.eq.actual.percent)
     if stats.haste.eq.actual.fraction == haste_caps.eq.fraction then
-      eq_haste = inline_green..eq_haste..inline_white
+      eq_haste = inline_green..eq_haste..default_color
     end
     debuff = settings.show_fractions and stats.haste.debuff.actual.fraction or string.format('%.1f', stats.haste.debuff.actual.percent)
     if stats.haste.debuff.actual.fraction < 0 then
-      debuff = inline_red..'-'..debuff..inline_white
+      debuff = inline_red..'-'..debuff..default_color
     end
   end
 
@@ -1218,7 +1220,7 @@ function update_ui_text(force_update)
   local lines = T{}
 
   if settings.summary_mode > 0 then
-    local str = ''
+    local str = default_color..''
     if dw_needed == -1 then
       str = str..'DW: N/A'
     else
@@ -1246,12 +1248,94 @@ function update_ui_text(force_update)
   end
 
   if settings.show_breakdown then
+    -- Make sure player is being tracked and has buffs
+    local me = get_member(player.id, player.name, true)
+    if me and me.haste_effects then
+      local line_count = settings.summary_mode == 0 and 1 or 2
+      -- Initialize current line as empty string if doesn't exist
+      local current_line = lines[line_count] or ''
+
+      -- Add samba effect to display
+      if me.samba and me.samba.expiration and me.samba.expiration > now() then
+        -- Add divider to current line
+        current_line = current_line..divider_str(current_line)
+        local effect = samba_stats
+        local samba_str = ''
+        local potency_str = potency_str(me.samba.potency)
+        samba_str = samba_str..potency_str..' '..effect.triggering_action
+
+        line_count = line_count + 1 -- Increment line for next effect
+      end
+
+      -- Add song effects to display
+      for effect in me.songs:it() do
+        -- Update to current line
+        current_line = lines[line_count] or ''
+
+        -- Add divider to current line
+        current_line = current_line..divider_str(current_line)
+
+        local effect_str = '' -- Format as: buff icon <space> potency <space> triggering action name
+        local potency_str = potency_str(effect.potency)
+        effect_str = effect_str..potency_str..' '.. effect.triggering_action
+        lines[line_count] = current_line..effect_str
+
+        line_count = line_count + 1 -- Increment line for next effect
+      end
+  
+      -- Add haste effects to display
+      for effect in me.haste_effects:it() do
+        -- Update to current line
+        current_line = lines[line_count] or ''
+
+        -- Add divider to current line
+        current_line = current_line..divider_str(current_line)
+
+        local effect_str = '' -- Format as: <space(s)> potency <space> triggering action name
+        local potency_str = potency_str(effect.potency, effect.is_debuff)
+        effect_str = effect_str..potency_str..' '.. effect.triggering_action
+        lines[line_count] = current_line..effect_str
+
+        line_count = line_count + 1 -- Increment line for next effect
+      end
+    end
   end
 
   -- Compose new text by combining all lines into a single string separated by line breaks
   local str = lines:concat('\n')
 
   ui:text(str)
+end
+
+-- Adds spaces as needed to format potency column
+function potency_str(potency, is_debuff)
+  local potency_str = ''
+  local potency_space_count = 5 - (is_debuff and 1 or 0) - tostring(potency):length() -- Potency only goes up to 4 digits (plus negative sign)
+
+  -- Add spaces before potency
+  for i=0,potency_space_count do
+    potency_str = potency_str..' '
+  end
+  potency_str = potency_str..(is_debuff and '-' or '')..tostring(potency)
+  return potency_str
+end
+
+-- Adds spaces as needed to format divider string between party info and haste effects
+function divider_str(current_line)
+  -- Add divider to current line (if needed)
+  local divider_str = ''
+
+  if settings.show_party then
+    local current_line_len = current_line and current_line:length() or 0
+    -- Include 8 characters for main/sub column
+    local forespace_count = 8 + NAME_MAX_CHAR_COUNT - current_line_len
+    for i=0,forespace_count do
+      divider_str = divider_str..' '
+    end
+    divider_str = divider_str..' | '
+  end
+
+  return divider_str
 end
 
 
@@ -1416,7 +1500,7 @@ function get_dw_tier_for_job(member, is_main)
       end
     end
     dw_tier = dw_tier or 0
-  elseif job == 'BLU' then
+  elseif is_main and job == 'BLU' then -- Subjob BLU cannot access any spells that would grant DW trait
     -- Determine dual wield based on equipped BLU spells
     local spell_ids = is_main and windower.ffxi.get_mjob_data().spells or windower.ffxi.get_sjob_data().spells or {}
     local trait_points = 0
@@ -1783,23 +1867,28 @@ windower.register_event('addon command', function(cmd, ...)
   if cmd then
     if S{'reload', 'r'}:contains(cmd) then
       windower.send_command('lua r hasteinfo')
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: Reloading')
     elseif S{'visible', 'vis'}:contains(cmd) then
       settings.show_ui = not settings.show_ui
       settings:save()
       toggle_ui()
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'show' == cmd then
       settings.show_ui = true
       settings:save()
       show_ui()
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'hide' == cmd then
       settings.show_ui = false
       settings:save()
       hide_ui()
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'resetpos' == cmd then
       settings.display.pos.x = 0
       settings.display.pos.y = 0
       settings:save()
       ui:pos(0, 0)
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI position reset to default.')
     elseif S{'detail', 'details'}:contains(cmd) then
       if not args[1] then
         -- If all details enabled, collapse
@@ -1807,34 +1896,42 @@ windower.register_event('addon command', function(cmd, ...)
           settings.summary_mode = 1
           settings.show_party = false
           settings.show_breakdown = false
+          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'verbose'..chat_d_blue..' mode.')
         else
           -- Else, enable all
           settings.summary_mode = 2
           settings.show_party = true
           settings.show_breakdown = true
+          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'minimal'..chat_d_blue..' mode.')
         end
       elseif S{'fractions', 'fraction', 'frac', 'percentage', 'percentages', 'percent', 'perc'}:contains(args[1]) then
         settings.show_fractions = not settings.show_fractions
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI detail values set to display in '..chat_white..(settings.show_fractions and 'fractions' or 'percentages')..chat_d_blue..'.')
       elseif 'summary' == args[1] then
         settings.summary_mode = (settings.summary_mode + 1) % 3
         local new_mode = summary_mode_options[settings.summary_mode]
-        windower.add_to_chat(001, chat_d_blue..'HasteInfo: Summary mode set to \''..new_mode..'\'')
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: Summary detail mode set to '..chat_white..new_mode..chat_d_blue..'.')
       elseif 'party' == args[1] then
         settings.show_party = not settings.show_party
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI set to '..chat_white..(settings.show_party and 'show' or 'hide')..chat_d_blue..' party details.')
       elseif S{'breakdown', 'effect', 'effects'}:contains(args[1]) then
         settings.show_breakdown = not settings.show_breakdown
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI set to '..chat_white..(settings.show_breakdown and 'show' or 'hide')..chat_d_blue..' effect details.')
       elseif S{'expand', 'verbose'}:contains(args[1]) then
         settings.summary_mode = 2
         settings.show_party = true
         settings.show_breakdown = true
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'verbose'..chat_d_blue..' mode.')
       elseif S{'collapse', 'collapsed', 'min', 'minimal'}:contains(args[1]) then
         settings.summary_mode = 1
         settings.show_party = false
         settings.show_breakdown = false
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'minimal'..chat_d_blue..' mode.')
       elseif 'reset' == args[1] then
         settings.summary_mode = defaults.summary_mode
         settings.show_party = defaults.show_party
         settings.show_breakdown = defaults.show_breakdown
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI detail modes reset to default.')
       end
       settings:save()
       update_ui_text()
@@ -1844,15 +1941,17 @@ windower.register_event('addon command', function(cmd, ...)
         skip_recalculate = false
       end
       report(skip_recalculate)
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: '..(not skip_recalculate and 'Recalculating stats and s' or 'S')..'ending report as requested.')
     elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
       -- Pause updating UI and sending reports, but keep updating tracked buffs and haste effects
       reports_paused = true
-      ui:color(255,0,0)
+      update_ui_text()
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: Pausing reports.')
     elseif S{'unpause', 'play', 'resume', 'continue', 'start', 'on', 'enable'}:contains(cmd) then
       -- Continue updating UI and sending reports
       reports_paused = false
-      ui:color(255,255,255)
       update_ui_text()
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
     elseif 'test' == cmd then
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
