@@ -129,7 +129,7 @@ ignored by HasteInfo.
 
 ## TODO
 * Verify that BLU trait DW calculates properly when subjob lv == 0
-* Fix not properly picking up indi effects from other members
+* Fix all effects being removed when zoning, instead of just the necessary ones.
 * Update UI
   - Optional: show haste effect breakdown
 * Implement commands:

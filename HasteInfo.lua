@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.6'
+_addon.version = '0.0.7'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -678,14 +678,14 @@ function deduce_haste_effects(member, new_buffs)
           else
             skip = true
           end
-        elseif buff.id == 214 then -- March
+        elseif buff.id == SONG_HASTE_BUFF_ID then -- March
           -- We only care about songs for main player
           if member.id ~= player.id then
             skip = true
           else
             update_songs(member, new_buffs)
           end
-        elseif buff.id == 580 then -- Geomancy
+        elseif buff.id == GEO_HASTE_BUFF_ID then -- Geomancy
           -- Get haste effect from indi- and geo- tables
           local found_indi = indi_active:with('buff_id', buff.id)
           local found_geo = geo_active:with('buff_id', buff.id)
@@ -739,6 +739,19 @@ function deduce_haste_effects(member, new_buffs)
               haste_effect.caster_id = geo_in_pt.id
               add_geo_effect(haste_effect)
             end
+          elseif found_indi and found_geo then -- Found both active indi- or geo-haste
+            -- Determine which effect is stronger
+            -- Take potency and add its multipliers
+            local indi_mult = found_indi.multipliers and math.min(found_indi.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
+            local geo_mult = found_geo.multipliers and math.min(found_geo.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
+            
+            if (found_indi.potency * indi_mult) >= (found_geo.potency * geo_mult) then
+              haste_effect = table.copy(found_indi)
+            else
+              haste_effect = table.copy(found_geo)
+            end
+          else -- Only one effect found
+            haste_effect = (found_indi and table.copy(found_indi)) or (found_geo and table.copy(found_geo))
           end
         elseif not skip then
           -- Unknown source, guess at potency

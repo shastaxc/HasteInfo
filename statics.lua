@@ -222,6 +222,121 @@ song_assumption_priority = L{
   haste_triggers['Magic'][419],
 }
 
+STR = {
+  SOUL_VOICE = 'Soul Voice',
+  MARCATO = 'Marcato',
+  BOLSTER = 'Bolster',
+  EA = 'Ecliptic Attrition',
+  BOG = 'Blaze of Glory',
+}
+
+-- Haste Samba does not have an actual buff or triggering action but here's the relevant info:
+-- Upon melee action, action packet is sent and if the add_effect_animation == 23, you have haste samba benefit
+-- Counts as Job Ability haste. Base potency=51, potency increases by 10/1024
+-- Merit ID is 1538
+samba_stats = {potency_base=51, potency_per_merit=10, merit_id=1538, merit_name='haste_samba_effect', animation_id=23}
+
+SONG_HASTE_BUFF_ID = 214
+GEO_HASTE_BUFF_ID = 580
+HASTE_BUFF_IDS = S{33, 64, 214, 228, 273, 353, 580, 604}
+
+WEAKNESS_DEBUFF_ID = 1
+SLOW_SPELL_DEBUFF_ID = 13
+SLOW_SONG_DEBUFF_ID = 194
+SLOW_GEO_DEBUFF_ID = 565
+SLOW_DEBUFF_IDS = S{1, 13, 194, 565}
+
+SOUL_VOICE_BUFF_ID = 52
+SOUL_VOICE_MULTIPLIER = 2
+MARCATO_BUFF_ID = 231
+MARCATO_MULTIPLIER = 1.5
+BOLSTER_BUFF_ID = 513
+BOLSTER_MULTIPLIER = 2
+ECLIPTIC_ATTRITION_BUFF_ID = 516
+ECLIPTIC_ATTRITION_MULTIPLIER = 1.25
+BOG_BUFF_ID = 569
+BOG_MULTIPLIER = 1.5
+COLURE_ACTIVE_ID = 612
+ENTRUST_BUFF_ID = 684
+OTHER_RELEVANT_BUFFS = S{52, 231, 513, 516, 569, 612, 684}
+
+SOUL_VOICE_ACTION_ID = 25
+MARCATO_ACTION_ID = 284
+BOLSTER_ACTION_ID = 343
+ECLIPTIC_ATTRITION_ACTION_ID = 347
+BOG_ACTION_ID = 350
+ENTRUST_ACTION_ID = 386
+OTHER_RELEVANT_ACTIONS = S{25, 284, 343, 347, 350, 386}
+
+GEOMANCY_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all geomancy buffs (max boost if Bolster + BoG + EA are all active)
+SONG_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all song buffs (max boost if SV + Marcato are all active)
+
+FINAL_APOC_ID = 21808
+SAMBA_DURATION = 9 -- Assume samba lasts 9 seconds on players after hitting a mob inflicted with Samba Daze
+ACTION_TYPE = T{
+  ['SELF_MELEE'] = 'Self Melee',
+  ['SELF_HASTE_JA'] = 'Self Haste JA',
+  ['ENTRUST_ACTIVATION'] = 'Entrust Activation',
+  ['SPELL'] = 'Spell',
+  ['BARD_SONG'] = 'Bard Song',
+  ['GEOMANCY'] = 'Geomancy',
+  ['SELF_CATASTROPHE'] = 'Self Catastrophe',
+  ['PET'] = 'Pet',
+}
+
+dw_tiers = {
+  [0] = 0,
+  [1] = 10,
+  [2] = 15,
+  [3] = 25,
+  [4] = 30,
+  [5] = 35,
+  [6] = 40,
+}
+
+dw_jobs = {
+  ['NIN'] = {
+    {tier=1, lv=10, jp_spent=0},
+    {tier=2, lv=25, jp_spent=0},
+    {tier=3, lv=45, jp_spent=0},
+    {tier=4, lv=65, jp_spent=0},
+    {tier=5, lv=85, jp_spent=0},
+  },
+  ['DNC'] = {
+    {tier=1, lv=20, jp_spent=0},
+    {tier=2, lv=40, jp_spent=0},
+    {tier=3, lv=60, jp_spent=0},
+    {tier=4, lv=80, jp_spent=0},
+    {tier=5, lv=99, jp_spent=550},
+  },
+  ['THF'] = {
+    {tier=1, lv=83, jp_spent=0},
+    {tier=2, lv=90, jp_spent=0},
+    {tier=3, lv=98, jp_spent=0},
+    {tier=4, lv=99, jp_spent=550}
+  },
+}
+
+dw_blu_spells = {
+  [657] = {id=657,en="Blazing Bound",ja="ブレーズバウンド",trait_points=4},
+  [661] = {id=661,en="Animating Wail",ja="鯨波",trait_points=4},
+  [673] = {id=673,en="Quad. Continuum",ja="四連突",trait_points=4},
+  [682] = {id=682,en="Delta Thrust",ja="デルタスラスト",trait_points=4},
+  [686] = {id=686,en="Mortal Ray",ja="モータルレイ",trait_points=4},
+  [699] = {id=699,en="Barbed Crescent",ja="偃月刃",trait_points=4},
+  [715] = {id=715,en="Molting Plumage",ja="モルトプルメイジ",trait_points=8},
+}
+
+-- Incoming packet 0x044 actually sends 2 different packets on job change and zone change
+-- One packet includes subjob info, the other includes main job info
+-- This table tracks the status so we know when both updates have completed
+job_update_status = {
+  main_update_received=false,
+  sub_update_received=false,
+  is_changed=false,
+  started_update_at=0,
+}
+
 trusts = L{
 	-- tanks
 	{ name = 'Amchuchu', job = 'RUN', subJob = 'WAR' },
@@ -353,121 +468,6 @@ trusts = L{
 	{ name = 'Pieuje', job = 'WHM' },
 	{ name = 'Sylvie', job = 'GEO', subJob = 'WHM' },
 	{ name = 'Yoran-Oran', job = 'WHM' },
-}
-
-STR = {
-  SOUL_VOICE = 'Soul Voice',
-  MARCATO = 'Marcato',
-  BOLSTER = 'Bolster',
-  EA = 'Ecliptic Attrition',
-  BOG = 'Blaze of Glory',
-}
-
--- Haste Samba does not have an actual buff or triggering action but here's the relevant info:
--- Upon melee action, action packet is sent and if the add_effect_animation == 23, you have haste samba benefit
--- Counts as Job Ability haste. Base potency=51, potency increases by 10/1024
--- Merit ID is 1538
-samba_stats = {potency_base=51, potency_per_merit=10, merit_id=1538, merit_name='haste_samba_effect', animation_id=23}
-
-SONG_HASTE_BUFF_ID = 214
-GEO_HASTE_BUFF_ID = 580
-HASTE_BUFF_IDS = S{33, 64, 214, 228, 273, 353, 580, 604}
-
-WEAKNESS_DEBUFF_ID = 1
-SLOW_SPELL_DEBUFF_ID = 13
-SLOW_SONG_DEBUFF_ID = 194
-SLOW_GEO_DEBUFF_ID = 565
-SLOW_DEBUFF_IDS = S{1, 13, 194, 565}
-
-SOUL_VOICE_BUFF_ID = 52
-SOUL_VOICE_MULTIPLIER = 2
-MARCATO_BUFF_ID = 231
-MARCATO_MULTIPLIER = 1.5
-BOLSTER_BUFF_ID = 513
-BOLSTER_MULTIPLIER = 2
-ECLIPTIC_ATTRITION_BUFF_ID = 516
-ECLIPTIC_ATTRITION_MULTIPLIER = 1.25
-BOG_BUFF_ID = 569
-BOG_MULTIPLIER = 1.5
-COLURE_ACTIVE_ID = 612
-ENTRUST_BUFF_ID = 684
-OTHER_RELEVANT_BUFFS = S{52, 231, 513, 516, 569, 612, 684}
-
-SOUL_VOICE_ACTION_ID = 25
-MARCATO_ACTION_ID = 284
-BOLSTER_ACTION_ID = 343
-ECLIPTIC_ATTRITION_ACTION_ID = 347
-BOG_ACTION_ID = 350
-ENTRUST_ACTION_ID = 386
-OTHER_RELEVANT_ACTIONS = S{25, 284, 343, 347, 350, 386}
-
-GEOMANCY_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all geomancy buffs (max boost if Bolster + BoG + EA are all active)
-SONG_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all song buffs (max boost if SV + Marcato are all active)
-
-FINAL_APOC_ID = 21808
-SAMBA_DURATION = 9 -- Assume samba lasts 9 seconds on players after hitting a mob inflicted with Samba Daze
-ACTION_TYPE = T{
-  ['SELF_MELEE'] = 'Self Melee',
-  ['SELF_HASTE_JA'] = 'Self Haste JA',
-  ['ENTRUST_ACTIVATION'] = 'Entrust Activation',
-  ['SPELL'] = 'Spell',
-  ['BARD_SONG'] = 'Bard Song',
-  ['GEOMANCY'] = 'Geomancy',
-  ['SELF_CATASTROPHE'] = 'Self Catastrophe',
-  ['PET'] = 'Pet',
-}
-
-dw_tiers = {
-  [0] = 0,
-  [1] = 10,
-  [2] = 15,
-  [3] = 25,
-  [4] = 30,
-  [5] = 35,
-  [6] = 40,
-}
-
-dw_jobs = {
-  ['NIN'] = {
-    {tier=1, lv=10, jp_spent=0},
-    {tier=2, lv=25, jp_spent=0},
-    {tier=3, lv=45, jp_spent=0},
-    {tier=4, lv=65, jp_spent=0},
-    {tier=5, lv=85, jp_spent=0},
-  },
-  ['DNC'] = {
-    {tier=1, lv=20, jp_spent=0},
-    {tier=2, lv=40, jp_spent=0},
-    {tier=3, lv=60, jp_spent=0},
-    {tier=4, lv=80, jp_spent=0},
-    {tier=5, lv=99, jp_spent=550},
-  },
-  ['THF'] = {
-    {tier=1, lv=83, jp_spent=0},
-    {tier=2, lv=90, jp_spent=0},
-    {tier=3, lv=98, jp_spent=0},
-    {tier=4, lv=99, jp_spent=550}
-  },
-}
-
-dw_blu_spells = {
-  [657] = {id=657,en="Blazing Bound",ja="ブレーズバウンド",trait_points=4},
-  [661] = {id=661,en="Animating Wail",ja="鯨波",trait_points=4},
-  [673] = {id=673,en="Quad. Continuum",ja="四連突",trait_points=4},
-  [682] = {id=682,en="Delta Thrust",ja="デルタスラスト",trait_points=4},
-  [686] = {id=686,en="Mortal Ray",ja="モータルレイ",trait_points=4},
-  [699] = {id=699,en="Barbed Crescent",ja="偃月刃",trait_points=4},
-  [715] = {id=715,en="Molting Plumage",ja="モルトプルメイジ",trait_points=8},
-}
-
--- Incoming packet 0x044 actually sends 2 different packets on job change and zone change
--- One packet includes subjob info, the other includes main job info
--- This table tracks the status so we know when both updates have completed
-job_update_status = {
-  main_update_received=false,
-  sub_update_received=false,
-  is_changed=false,
-  started_update_at=0,
 }
 
 chat_purple = string.char(0x1F, 200)
