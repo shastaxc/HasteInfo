@@ -221,6 +221,7 @@ end
 
 -- Packet should already be parsed
 function update_job_from_packet(member, packet)
+  if not member then return end
   local is_self = member.id == player.id
 
   local main_job = packet['Main job'] or packet['Main Job']
@@ -1128,11 +1129,15 @@ function update_geomancy_effect_multiplier(caster_id, multiplier_name, is_gained
   local found_effect
   if update_indi then
     found_effect = indi_active[caster_id] -- Only applies to the indi spell that caster casted on themselves
-    found_effect.multipliers[multiplier_name] = new_multiplier
+    if found_effect then
+      found_effect.multipliers[multiplier_name] = new_multiplier
+    end
   end
   if update_geo then
     found_effect = geo_active[caster_id] -- Only applies to geo bubbles that caster casted
-    found_effect.multipliers[multiplier_name] = new_multiplier
+    if found_effect then
+      found_effect.multipliers[multiplier_name] = new_multiplier
+    end
   end
 end
 
@@ -1548,21 +1553,19 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     -- Remove tracked members if their ID is not found
     for member in players:it() do
       -- If ID is not a placeholder, but not in the party ids list, remove them
-      if member.id >= 0 and not current_alliance_ids:contains(member.id) then
+      if member.id >= 0 and not current_alliance_ids:contains(member.id) and member.id ~= player.id then
         remove_member(member.id)
       end
     end
-  elseif id == 0x0DF then -- char update; importantly contains job info, only for self
+  elseif id == 0x0DF then -- char update; importantly contains job info
     local packet = packets.parse('incoming', data)
 
     local playerId = packet['ID']
-    if playerId and playerId > 0 then
+    if playerId and playerId > 0 and playerId == player.id then -- Only update for self
       -- print('PACKET: Char update for player ID: '..playerId)
       local member = get_member(playerId, nil)
 
       update_job_from_packet(member, packet)
-    else
-      print('Char update: ID not found.')
     end
   elseif id == 0x0DD then -- party member update; importantly contains job info
     -- Includes alliance members
@@ -1581,29 +1584,36 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
 
     local packet = packets.parse('incoming', data)
     
+    local player_id = packet['ID']
+    local player_name = packet['Name']
     local party_number = packet['Party Number']
     local party_info = windower.ffxi.get_party()
     local member
 
-    if party_info then -- If we can't get alliance info, we can't do anything but update jobs and zone
+    if party_info then
       local in_alliance = party_info.alliance_leader ~= nil
   
       -- Filter out unwanted cases
-      if party_number == 2 or party_number == 3 then
-        return
-      elseif (party_number == 0 and in_alliance) or
-          (party_number == 0 and not in_alliance and not current_alliance_ids:contains(packet['ID'])) then
-        member = get_member(packet['ID'], packet['Name'], true)
+      if party_number == 2 or party_number == 3 then -- Alliance member
+        -- Do nothing
+      elseif (party_number == 0 and in_alliance) then -- Player is leaving
+        member = get_member(player_id, player_name, true)
         if member then
           remove_member(member.id)
+          member = nil
         end
-        return
+      elseif (party_number == 0 and not in_alliance and not current_alliance_ids:contains(player_id)) then
+        member = get_member(player_id, player_name, true)
+        if member then
+          remove_member(member.id)
+          member = nil
+        end
+      else
+        -- If we made it past those filters, add/update member
+        member = get_member(player_id, player_name)
       end
-
-      -- If we made it past those filters, add/update member
-      member = get_member(packet['ID'], packet['Name'])
-    else
-      member = get_member(packet['ID'], packet['Name'], true)
+    else -- If we can't get alliance info, we can't do anything but update jobs and zone
+      member = get_member(player_id, player_name, true)
     end
 
     if member then
