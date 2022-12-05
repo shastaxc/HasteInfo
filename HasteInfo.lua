@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.10'
+_addon.version = '0.0.11'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1366,6 +1366,7 @@ end
 -- Calculate haste and dual wield stats
 function calculate_stats()
   local me = get_member(player.id, player.name, true)
+  if not me then return end
   
   -- Reset stats
   old_dw_stats = table.copy(stats['dual_wield'], true)
