@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.14'
+_addon.version = '0.0.15'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -850,7 +850,7 @@ function update_songs(member, buffs)
     -- Use expiration matching to figure out which songs were refreshed
     for new_song in new_buffs:it() do
       for old_song in my_song_copy:it() do
-        if old_song.expiration and math.abs(new_song.expiration - old_song.expiration) < 1 then
+        if old_song.expiration and math.abs(new_song.expiration - old_song.expiration) < 3 then
           old_song.expiration = new_song.expiration
           old_song.paired = true
           new_song.paired = true
@@ -890,7 +890,7 @@ function update_songs(member, buffs)
     -- Try match method 1, use expiration matching to figure out which songs were lost
     for new_song in new_buffs:it() do
       for old_song in my_song_copy:it() do
-        if old_song.expiration and math.abs(new_song.expiration - old_song.expiration) < 1 then
+        if old_song.expiration and math.abs(new_song.expiration - old_song.expiration) < 3 then
           old_song.expiration = new_song.expiration
           old_song.paired = true
           new_song.paired = true
@@ -922,7 +922,7 @@ function update_songs(member, buffs)
     end
 
     -- Double check that list is correct
-    if keep_songs ~= new_count then
+    if keep_songs.n ~= new_count then
       print('Logic that determines lost songs is incorrect.')
     end
 
@@ -1204,7 +1204,7 @@ function update_trust_job(member)
     local trust_info = trusts:with('name', member.name)
     if trust_info then
       member.main = trust_info.job
-      member.sub = trust_info.subJob or ''
+      member.sub = trust_info.subJob or '___'
       update_ui_text()
     end
   end
@@ -2032,6 +2032,8 @@ windower.register_event('addon command', function(cmd, ...)
       update_ui_text()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
     elseif 'test' == cmd then
+      windower.add_to_chat(001, 'clock offset: '..clock_offset)
+      table.vprint(players[player.id])
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))

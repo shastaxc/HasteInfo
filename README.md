@@ -128,7 +128,6 @@ ignored by HasteInfo.
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO / Known Issues
-* Fix error message thrown when March is overwritten by another song (possibly only when overwritten by non-march).
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
 * Detect job for anonymous party members by detecting actions that only 1 job could perform.
 * Update player table when changing merits and job point allocations. Update DW if necessary.
