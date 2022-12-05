@@ -339,6 +339,7 @@ job_update_status = {
   started_update_at=0,
 }
 
+FIRST_NPC_INDEX = 16777215
 trusts = L{
 	-- tanks
 	{ name = 'Amchuchu', job = 'RUN', subJob = 'WAR' },
@@ -366,21 +367,21 @@ trusts = L{
 	{ name = 'Cid', job = 'WAR' },
 	{ name = 'Darrcuiln', job = 'SPC' }, -- special / beast
 	{ name = 'Excenmille', job = 'PLD', model = 3003 },
-	{ name = 'Excenmille', job = 'SPC' }, -- Excenmille (S), special
+	-- { name = 'Excenmille', job = 'SPC' }, -- Excenmille (S), special
 	{ name = 'Fablinix', job = 'RDM', subJob = 'BLM' },
 	{ name = 'Gilgamesh', job = 'SAM' },
 	{ name = 'Halver', job = 'PLD', subJob = 'WAR' },
 	{ name = 'Ingrid', job = 'WAR', subJob = 'WHM', model = 3102 }, -- Ingrid II
-	{ name = 'Iroha', job = 'SAM', model = 3111 },
+	-- { name = 'Iroha', job = 'SAM', model = 3111 },
 	{ name = 'Iroha', job = 'SAM', subJob = 'WHM', model = 3112 }, -- Iroha II
 	{ name = 'IronEater', job = 'WAR' },
 	{ name = 'Klara', job = 'WAR' },
 	{ name = 'LehkoHabhoka', job = 'THF', subJob = 'BLM' },
 	{ name = 'LheLhangavo', job = 'MNK' },
 	{ name = 'LhuMhakaracca', job = 'BST', subJob = 'WAR' },
-	{ name = 'Lilisette', job = 'DNC', model = 3049 },
+	-- { name = 'Lilisette', job = 'DNC', model = 3049 },
 	{ name = 'Lilisette', job = 'DNC', model = 3084 }, -- Lilisette II
-	{ name = 'Lion', job = 'THF', model = 3011 },
+	-- { name = 'Lion', job = 'THF', model = 3011 },
 	{ name = 'Lion', job = 'THF', subJob = 'NIN', model = 3081 }, -- Lion II
 	{ name = 'Luzaf', job = 'COR', subJob = 'NIN' },
 	{ name = 'Maat', job = 'MNK', model = 3037 },
@@ -394,7 +395,7 @@ trusts = L{
 	{ name = 'NanaaMihgo', job = 'THF' },
 	{ name = 'Nashmeira', job = 'PUP', subJob = 'WHM', model = 3027 },
 	{ name = 'Noillurie', job = 'SAM', subJob = 'PLD' },
-	{ name = 'Prishe', job = 'MNK', subJob = 'WHM', model = 3017 },
+	-- { name = 'Prishe', job = 'MNK', subJob = 'WHM', model = 3017 },
 	{ name = 'Prishe', job = 'MNK', subJob = 'WHM', model = 3082 }, -- Prishe II
 	{ name = 'Rainemard', job = 'RDM' },
 	{ name = 'RomaaMihgo', job = 'THF' },
@@ -406,7 +407,7 @@ trusts = L{
 	{ name = 'UkaTotlihn', job = 'DNC', subJob = 'WAR' },
 	{ name = 'Volker', job = 'WAR' },
 	{ name = 'Zazarg', job = 'MNK' },
-	{ name = 'Zeid', job = 'DRK', model = 3010 },
+	-- { name = 'Zeid', job = 'DRK', model = 3010 },
 	{ name = 'Zeid', job = 'DRK', model = 3086 }, -- Zeid II
 	{ name = 'Matsui-P', job = 'NIN', subJob = 'BLM' },
 	-- ranged
@@ -430,7 +431,7 @@ trusts = L{
 	{ name = 'Ovjang', job = 'RDM', subJob = 'WHM' },
 	{ name = 'Robel-Akbel', job = 'BLM' },
 	{ name = 'Rosulatia', job = 'BLM' },
-	{ name = 'Shantotto', job = 'BLM', model = 3000 },
+	-- { name = 'Shantotto', job = 'BLM', model = 3000 },
 	{ name = 'Shantotto', job = 'BLM', model = 3110 }, -- Shantotto II
 	{ name = 'Ullegore', job = 'BLM' },
 	-- healer
@@ -443,7 +444,7 @@ trusts = L{
 	{ name = 'Nashmeira', job = 'WHM', model = 3083 }, -- Nashmeira II
 	{ name = 'Ygnas', job = 'WHM' },
 	-- support
-	{ name = 'Arciela', job = 'RDM', model = 3074 },
+	-- { name = 'Arciela', job = 'RDM', model = 3074 },
 	{ name = 'Arciela', job = 'RDM', model = 3085 }, -- Arciela II
 	{ name = 'Joachim', job = 'BRD', subJob = 'WHM' },
 	{ name = 'KingOfHearts', job = 'RDM', subJob = 'WHM' },

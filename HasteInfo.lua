@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.13'
+_addon.version = '0.0.14'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -80,8 +80,10 @@ function init()
       if actor.mob and actor.mob.id > 0 then
         actor_id = actor.mob.id
       end
+
       -- Create user if doesn't already exist
       local member = get_member(actor_id, actor.name)
+      -- Set zone info
       member.zone = actor.zone
     end
   end
@@ -138,6 +140,9 @@ end
 
 function get_member(id, name, dontCreate)
   if not id and not name then return end
+
+  local npc_member = get_npc_member(id, name, dontCreate)
+  if npc_member then return npc_member end
 
   -- Update member if necessary. Possible scenarios:
   -- ID given, name given
@@ -707,8 +712,7 @@ function deduce_haste_effects(member, new_buffs)
                 haste_effect.caster_id = p.id
                 haste_effect.target_id = p.id
                 add_indi_effect(haste_effect)
-              end
-              if p.main == 'GEO' then
+              elseif p.main == 'GEO' and not p.is_trust then
                 geo_in_pt = p
               elseif p.buffs and p.buffs:contains(COLURE_ACTIVE_ID) and not indi_active[p.id] then
                 if not entrusted_member or p.id == player.id then
@@ -1149,6 +1153,77 @@ function add_multipliers(m1, m2)
   return m1 + m2 + 1
 end
 
+-- Takes stringified binary number and converts to decimal number
+function binary_to_decimal(binary_str)
+  local bin = string.reverse(binary_str)
+  local sum = 0
+
+  for i = 1, string.len(bin) do
+    local num = string.sub(bin, i,i) == "1" and 1 or 0
+    sum = sum + num * 2^(i-1)
+  end
+  return sum
+end
+
+function get_npc_member(id, name, dontCreate)
+  if not id then return end
+  local is_npc = id > FIRST_NPC_INDEX
+  if not is_npc then return end
+
+  local member = players[id]
+  if not member and not dontCreate then
+    member = add_member(id, name)
+    if member then
+      member.is_trust = true
+    end
+  end
+
+  -- Update zone
+  if member and not member.zone then
+    -- NPC IDs are 32 bits.
+    -- First 8 bits (32-25) are are always 0000 0001
+    -- Next 12 bits (24-13) are zone ID
+    -- Last 12 bits (12-1) is position in entity list (plus an offset)
+    local binary_id = math.binary(id)
+    local zone_binary = binary_id:sub(2,13)
+    local zone_id = binary_to_decimal(zone_binary)
+    member.zone = zone_id
+  end
+
+  -- Update name
+  if member and (not member.name or member.name:empty()) then
+    if name and not name:empty() then
+      member.name = name
+    else -- Get name if in same zone
+      local me = get_member(player.id, player.name)
+      if me and member.zone == me.zone then
+        local npc_info = windower.ffxi.get_mob_by_id(member.id)
+        member.name = npc_info.name or ''
+      end
+    end
+  end
+
+  -- Update trust job info
+  update_trust_job(member)
+
+  return member
+end
+
+function update_trust_job(member)
+  if not member or not member.id or not member.name or member.name:empty() then return end
+
+  -- We don't have subjob info for all trusts, so don't include a nil check for subjob
+  if not member.main or member.main:empty() then
+    local trust_info = trusts:with('name', member.name)
+    if trust_info then
+      member.main = trust_info.job
+      member.sub = trust_info.subJob or ''
+      update_ui_text()
+    end
+  end
+end
+
+
 -------------------------------------------------------------------------------
 -- UI Functions
 -------------------------------------------------------------------------------
@@ -1532,6 +1607,8 @@ end
 windower.register_event('incoming chunk', function(id, data, modified, injected, blocked)
   if id == 0x076 then -- Party buffs update; does not include self
     -- Triggers whenever someone joins/leaves party or changes zone
+    -- Does not include trusts, so do not use this packet to remove members missing from the update
+
     parse_buffs(data)
   elseif id == 0x0C8 then -- Alliance status update
     -- Triggers after party/alliance members join/leave, after leadership changes,
@@ -1559,14 +1636,19 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       end
     end
   elseif id == 0x0DF then -- char update; importantly contains job info
+    -- Contains single person updates for anyone in alliance
     local packet = packets.parse('incoming', data)
 
     local playerId = packet['ID']
-    if playerId and playerId > 0 and playerId == player.id then -- Only update for self
-      -- print('PACKET: Char update for player ID: '..playerId)
-      local member = get_member(playerId, nil)
-
-      update_job_from_packet(member, packet)
+    if playerId and playerId > 0 then
+      if playerId == player.id then -- If player is me, add and/or update
+        local member = get_member(playerId, nil)
+        update_job_from_packet(member, packet)
+      elseif playerId > FIRST_NPC_INDEX then -- If player is a trust...
+        -- This means we are not in an alliance and they are in your party
+        -- because trusts cannot exist in an alliance. Add and/or update member.
+        get_member(playerId, nil)
+      end
     end
   elseif id == 0x0DD then -- party member update; importantly contains job info
     -- Includes alliance members
@@ -1685,7 +1767,6 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       local vana_time = p['Timestamp'] * 60 - math.floor(p['Time offset?'])
       clock_offset = math.floor(os.time() - vana_time % 0x100000000 / 60)
     end
-    local p = packets.parse('incoming', data)
   elseif id == 0x044 then
     -- Triggers once to tell sub job info, and again with main job info. Triggers on job change and zone change.
     -- Importantly, this packet includes BLU spell info, although it is not decoded by packets library.
@@ -1878,7 +1959,7 @@ windower.register_event('addon command', function(cmd, ...)
   if cmd then
     if S{'reload', 'r'}:contains(cmd) then
       windower.send_command('lua r hasteinfo')
-      windower.add_to_chat(001, chat_d_blue..'HasteInfo: Reloading')
+      windower.add_to_chat(001, chat_d_blue..'HasteInfo: Reloading.')
     elseif S{'visible', 'vis'}:contains(cmd) then
       settings.show_ui = not settings.show_ui
       settings:save()
