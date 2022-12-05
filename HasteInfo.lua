@@ -1907,13 +1907,13 @@ windower.register_event('addon command', function(cmd, ...)
           settings.summary_mode = 1
           settings.show_party = false
           settings.show_breakdown = false
-          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'verbose'..chat_d_blue..' mode.')
+          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'minimal'..chat_d_blue..' mode.')
         else
           -- Else, enable all
           settings.summary_mode = 2
           settings.show_party = true
           settings.show_breakdown = true
-          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'minimal'..chat_d_blue..' mode.')
+          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'verbose'..chat_d_blue..' mode.')
         end
       elseif S{'fractions', 'fraction', 'frac', 'percentage', 'percentages', 'percent', 'perc'}:contains(args[1]) then
         settings.show_fractions = not settings.show_fractions
