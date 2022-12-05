@@ -322,9 +322,8 @@ function parse_action(act, type)
             add_haste_effect(target_member, haste_effect)
           end
         end
-      else
-        return -- Don't do anything about buff songs from unknown casters
       end
+      return -- End processing of this action
     end
 
     for i,target in ipairs(act.targets) do
@@ -336,7 +335,7 @@ function parse_action(act, type)
           local song_bonus = 0
 
           -- Check for trusts
-          if trusts:with('name', caster.name) or caster.sub == 'BRD' then
+          if caster.is_trust or caster.sub == 'BRD' then
             song_bonus = 0
           else
             song_bonus = haste_effect.song_cap
@@ -361,20 +360,8 @@ function parse_action(act, type)
     
     local caster = get_member(act.actor_id, nil, true)
     if not caster then
-      -- Check if this is a debuff spell and handle accordingly
-      if haste_effect.haste_category == 'debuff' then
-        for i,target in ipairs(act.targets) do
-          if target.id == me.id then
-            local target_member = get_member(target.id)
-
-            -- Add to target haste effects
-            haste_effect.potency = haste_effect.potency_base
-            add_haste_effect(target_member, haste_effect)
-          end
-        end
-      else
-        return -- Don't do anything about buff songs from unknown casters
-      end
+      -- Geo spells casted by non-party member on non-party member is never processed
+      return
     end
 
     for i,target in ipairs(act.targets) do
@@ -386,7 +373,7 @@ function parse_action(act, type)
       -- Add geomancy gear bonus
       local geomancy = 0
       -- Check for trusts
-      if trusts:with('name', caster.name) then
+      if caster.is_trust then
         geomancy = 0
       else -- not a trust
         geomancy = 10 -- assume idris; TODO: Enhance this with a whitelist/blacklist
