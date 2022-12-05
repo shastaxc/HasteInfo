@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.15'
+_addon.version = '0.0.16'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1185,7 +1185,11 @@ function get_npc_member(id, name, dontCreate)
       local me = get_member(player.id, player.name)
       if me and member.zone == me.zone then
         local npc_info = windower.ffxi.get_mob_by_id(member.id)
-        member.name = npc_info.name or ''
+        if npc_info then
+          member.name = npc_info.name
+        else
+          member.name = ''
+        end
       end
     end
   end
