@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.11'
+_addon.version = '0.0.12'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1225,7 +1225,7 @@ function update_ui_text(force_update)
   local lines = T{}
 
   if settings.summary_mode > 0 then
-    local str = default_color..''
+    local str = ' '..default_color
     if dw_needed == -1 then
       str = str..'DW: N/A'
     else
@@ -1307,7 +1307,7 @@ function update_ui_text(force_update)
   end
 
   -- Compose new text by combining all lines into a single string separated by line breaks
-  local str = lines:concat('\n')
+  local str = lines:concat('\n ')
 
   ui:text(str)
 end
