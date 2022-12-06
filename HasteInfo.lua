@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.16'
+_addon.version = '0.0.17'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -479,7 +479,7 @@ function is_samba_expired(member)
   local is_expired = true
 
   if member.samba and member.samba.expiration then
-    is_expired = member.samba.expiration >= now()
+    is_expired = member.samba.expiration <= now()
     if is_expired then
       member.samba = {}
     end
@@ -561,10 +561,11 @@ end
 
 function update_samba(member, is_samba_active)
   if not member then return end
-  if member.samba and not is_samba_active then
+  
+  if not is_samba_active then
     member.samba = {}
     report()
-  elseif is_samba_active then
+  else
     local potency = samba_stats.potency_base
     -- Check if primary player is DNC
     if player.main_job == 'DNC' then
@@ -572,8 +573,8 @@ function update_samba(member, is_samba_active)
     else
       -- Determine potency based on party jobs
       local has_main_dnc
-      for member in players:it() do
-        if member.main == 'DNC' then
+      for p in players:it() do
+        if p.main == 'DNC' then
           has_main_dnc = true
           break
         end
@@ -588,6 +589,7 @@ function update_samba(member, is_samba_active)
       ['expiration'] = now() + SAMBA_DURATION,
       ['potency'] = potency,
     }
+    table.vprint(member)
     report()
   end
 end
@@ -1327,13 +1329,14 @@ function update_ui_text(force_update)
       local current_line = lines[line_count] or ''
 
       -- Add samba effect to display
-      if me.samba and me.samba.expiration and me.samba.expiration > now() then
+      if not is_samba_expired(me) then
         -- Add divider to current line
         current_line = current_line..divider_str(current_line)
         local effect = samba_stats
         local samba_str = ''
         local potency_str = potency_str(me.samba.potency)
         samba_str = samba_str..potency_str..' '..effect.triggering_action
+        lines[line_count] = current_line..samba_str
 
         line_count = line_count + 1 -- Increment line for next effect
       end
