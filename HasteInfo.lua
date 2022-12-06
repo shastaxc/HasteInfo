@@ -1422,8 +1422,10 @@ end
 -------------------------------------------------------------------------------
 
 -- Report latest stats
-function report(skip_recalculate_stats)
+function report(skip_recalculate_stats, force_update)
   if reports_paused then return end
+
+  local old_dw_needed = stats.dual_wield.actual_needed
   if not skip_recalculate_stats then
     calculate_stats()
   end
@@ -1433,7 +1435,9 @@ function report(skip_recalculate_stats)
 
   -- Send report to GearSwap
   local dw_needed = stats.dual_wield.actual_needed
-  windower.send_command('gs c hasteinfo '..dw_needed)
+  if (old_dw_needed ~= dw_needed) or force_update then
+    windower.send_command('gs c hasteinfo '..dw_needed)
+  end
 end
 
 -- Calculate haste and dual wield stats
@@ -2036,7 +2040,7 @@ windower.register_event('addon command', function(cmd, ...)
       if args[1] == 'false' then
         skip_recalculate = false
       end
-      report(skip_recalculate)
+      report(skip_recalculate, true) -- Force report to send
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: '..(not skip_recalculate and 'Recalculating stats and s' or 'S')..'ending report as requested.')
     elseif S{'pause', 'freeze', 'stop', 'halt', 'off', 'disable'}:contains(cmd) then
       -- Pause updating UI and sending reports, but keep updating tracked buffs and haste effects
