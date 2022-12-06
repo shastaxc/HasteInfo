@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.18'
+_addon.version = '0.0.19'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -302,7 +302,7 @@ function parse_action(act, type)
     if table.find(me_target.actions, function(a) return a.param ~= 0 end) then
       -- Set potency
       haste_effect.potency = haste_effect.potency_base
-      if haste_effect.merit_job == player.main then
+      if haste_effect.potency_per_merit and haste_effect.merit_job == player.main then
         haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_merit * player.merits[haste_effect.merit_name])
       end
       add_haste_effect(me, haste_effect)
