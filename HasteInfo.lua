@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.17'
+_addon.version = '0.0.18'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -271,13 +271,17 @@ function update_job_from_packet(member, packet)
   end
 
   -- If job was updated and this is primary player, update relevant attributes
-  if updated_job and is_self then
-    player.main_job = main_job
-    player.main_job_level = main_job_lv
-    player.sub_job = sub_job
-    player.sub_job_level = sub_job_lv
+  if updated_job then
+    if is_self then
+      player.main_job = main_job
+      player.main_job_level = main_job_lv
+      player.sub_job = sub_job
+      player.sub_job_level = sub_job_lv
 
-    read_dw_traits()
+      read_dw_traits()
+    else
+      update_ui_text()
+    end
   end
 end
 
@@ -1631,6 +1635,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     end
   elseif id == 0x0DF then -- char update; importantly contains job info
     -- Contains single person updates for anyone in alliance
+    -- Use this to update jobs too because 0x0DD apparently doesn't trigger in dungeons
     local packet = packets.parse('incoming', data)
 
     local playerId = packet['ID']
@@ -1642,6 +1647,11 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
         -- This means we are not in an alliance and they are in your party
         -- because trusts cannot exist in an alliance. Add and/or update member.
         get_member(playerId, nil)
+      else
+        local member = get_member(playerId, nil, true)
+        if member then -- Don't create new users in this packet, only update job
+          update_job_from_packet(member, packet)
+        end
       end
     end
   elseif id == 0x0DD then -- party member update; importantly contains job info

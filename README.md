@@ -133,10 +133,9 @@ ignored by HasteInfo.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
 * Detect job for anonymous party members by detecting actions that only 1 job could perform.
 * Update player table when changing merits and job point allocations. Update DW if necessary.
-* Verify that hiding UI while dead works.
+* Fix hiding UI while dead (currently remains visible)
 * Verify that debuff effects are properly detected and calculated:
   - Battlefield Elegy (-256/1024)
   - Carnage Elegy (-512/1024)
-  - Weakness (-1024/1024)
   - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
