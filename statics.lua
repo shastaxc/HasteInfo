@@ -119,7 +119,7 @@ summary_mode_options = T{
 -- Default settings
 defaults = {
   show_ui=true,
-  show_fractions = false,
+  show_fractions = true,
   show_party = true,
   show_breakdown = true,
   summary_mode = 2,

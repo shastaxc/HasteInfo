@@ -1236,6 +1236,18 @@ function update_trust_job(member)
   end
 end
 
+function percent(val)
+  -- If string, convert to number to do conversion and then back to string
+  local is_str = type(val) == 'string'
+  val = is_str and tonumber(val) or val
+  -- If not string, don't convert to string, return number
+  local result = val / 1024 * 100 or 0
+  if is_str then
+    return string.format('%.1f', result) + '%'
+  end
+  return result
+end
+
 
 -------------------------------------------------------------------------------
 -- UI Functions
@@ -1277,7 +1289,7 @@ function update_ui_text(force_update)
     -- Change to green if capped
     dw_needed = inline_green..dw_needed..default_color
   end
-  local total_haste = tostring(settings.show_fractions and stats.haste.total.actual.fraction or string.format('%.1f', stats.haste.total.actual.percent))
+  local total_haste = settings.show_fractions and tostring(stats.haste.total.actual.fraction) or string.format('%.1f', stats.haste.total.actual.percent)
   if stats.haste.total.actual.fraction == haste_caps.total.fraction then
     -- Change to green if capped
     total_haste = inline_green..total_haste..default_color
@@ -1403,6 +1415,7 @@ end
 
 -- Adds spaces as needed to format potency column
 function potency_str(potency, is_debuff)
+  potency = settings.show_fractions and potency or string.format('%.1f', percent(potency))
   local potency_str = ''
   local potency_space_count = 5 - (is_debuff and 1 or 0) - tostring(potency):length() -- Potency only goes up to 4 digits (plus negative sign)
 
@@ -1410,7 +1423,7 @@ function potency_str(potency, is_debuff)
   for i=0,potency_space_count do
     potency_str = potency_str..' '
   end
-  potency_str = potency_str..(is_debuff and '-' or '')..tostring(potency)
+  potency_str = potency_str..(is_debuff and '-' or '')..tostring(potency)..(settings.show_fractions and '' or '%')
   return potency_str
 end
 
@@ -1532,7 +1545,7 @@ function calculate_stats()
     -- Get uncapped fraction
     local uncapped_frac = t['uncapped']['fraction']
     -- Calculate fraction as percentage
-    local uncapped_perc = uncapped_frac / 1024 * 100 or 0
+    local uncapped_perc = percent(uncapped_frac)
     t['uncapped']['percent'] = uncapped_perc
     
     -- Calculate actual values (include caps)
@@ -1549,7 +1562,7 @@ function calculate_stats()
   stats.haste.total.uncapped.fraction = ma_total + stats.haste.ja.actual.fraction + stats.haste.eq.actual.fraction
   stats.haste.total.actual.fraction = math.min(stats.haste.total.uncapped.fraction, haste_caps.total.fraction)
   
-  stats.haste.total.uncapped.percent = stats.haste.total.uncapped.fraction / 1024 * 100 or 0
+  stats.haste.total.uncapped.percent = percent(stats.haste.total.uncapped.fraction)
   stats.haste.total.actual.percent = math.min(stats.haste.total.uncapped.percent, haste_caps.total.percent)
 
   -- Determine dual wield needed
