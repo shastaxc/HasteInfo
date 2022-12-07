@@ -359,54 +359,71 @@ function parse_action(act, type)
       end
     end
   elseif type == ACTION_TYPE.GEOMANCY then
-    if not haste_triggers['Magic'][act.param] then return end
-    local haste_effect = table.copy(haste_triggers['Magic'][act.param])
+    local table_entry = haste_triggers['Magic'][act.param] or nil
+    local haste_effect = table_entry and table.copy(haste_triggers['Magic'][act.param])
     
     local caster = get_member(act.actor_id, nil, true)
     if not caster then
-      -- Geo spells casted by non-party member on non-party member is never processed
+      -- Geo spells casted by non-party member should not be processed
       return
     end
 
-    for i,target in ipairs(act.targets) do
-      local target_member = get_member(target.id)
+    -- geo spells only ever have a single target
+    local action_target = act.targets[1]
+    if not action_target then return end
 
+    local target_member = get_member(action_target.id)
+    local spell = res.spells[act.param]
+    local is_indi = spell and spell.en:startswith('I')
+
+    -- See if this is one of the haste spells
+    if haste_effect then
       -- Determine potency
       haste_effect.potency = haste_effect.potency_base
-
+  
       -- Add geomancy gear bonus
       local geomancy = 0
       -- Check for trusts
       if caster.is_trust then
         geomancy = 0
-      else -- not a trust
+        -- Check caster and target to see if this is an Entrusted spell
+      elseif target_member and caster.id ~= target_member.id then
+        geomancy = 0
+      else -- not a trust, not entrusted
         geomancy = 10 -- assume idris; TODO: Enhance this with a whitelist/blacklist
       end
-
-      -- Determine potency
+  
+      -- Apply geomancy bonus
       haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_geomancy * geomancy)
       
       -- Determine JA boosts to potency
       -- Bolster and Blaze of Glory both apply to the bubble, but its multiplier maxes at 2x
       local bolster_multiplier = caster.buffs:with('id', BOLSTER_BUFF_ID) and BOLSTER_MULTIPLIER or 1
       local bog_multiplier = caster.buffs:with('id', BOG_BUFF_ID) and BOG_MULTIPLIER or 1
-
+  
       -- Also, add to the indi- or geo- table
-      if haste_effect.triggering_action:startswith('Indi-') then
+      if is_indi then
         haste_effect.caster_id = caster.id
         haste_effect.target_id = target_member.id
         haste_effect.multipliers = T{}
         haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
         add_indi_effect(haste_effect)
-      elseif haste_effect.triggering_action:startswith('Geo-') then
+      else -- Assume Geo- spell
         haste_effect.caster_id = caster.id
         haste_effect.multipliers = T{}
         haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
         haste_effect.multipliers[STR.BOG] = bog_multiplier
         add_geo_effect(haste_effect)
       end
-
+  
       add_haste_effect(target_member, haste_effect)
+    else -- If not a haste spell, still see if this is replacing an existing effect
+      -- Even if not a haste geo spell, we should track if it's ending a current one
+      if is_indi then
+        remove_indi_effect(target_member.id)
+      else -- Assume Geo- spell
+        remove_geo_effect(target_member.id)
+      end
     end
   elseif type == ACTION_TYPE.SPELL then
     if not haste_triggers['Magic'][act.param] then return end
@@ -1838,16 +1855,15 @@ windower.register_event('action', function(act)
     elseif act.param == 386 then -- Entrust activation
       parse_action(act, ACTION_TYPE.ENTRUST_ACTIVATION)
     end
-  elseif act.category == 4 and haste_triggers['Magic'][act.param]
-      and players[act.targets[1].id] then -- Spell finish casting on party member target
+  elseif act.category == 4 and players[act.targets[1].id] then -- Spell finish casting on party member target
     -- Determine if bard song, geomancy, or other
     local spell = res.spells[act.param]
     if spell then
-      if spell.type == 'BardSong' then
+      if spell.type == 'BardSong' and haste_triggers['Magic'][act.param] then
         parse_action(act, ACTION_TYPE.BARD_SONG)
       elseif spell.type == 'Geomancy' then
         parse_action(act, ACTION_TYPE.GEOMANCY)
-      else
+      elseif haste_triggers['Magic'][act.param] then
         parse_action(act, ACTION_TYPE.SPELL)
       end
     end
@@ -2052,6 +2068,8 @@ windower.register_event('addon command', function(cmd, ...)
       update_ui_text()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
     elseif 'test' == cmd then
+      table.vprint(indi_active)
+      table.vprint(geo_active)
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
