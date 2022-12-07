@@ -593,7 +593,6 @@ function update_samba(member, is_samba_active)
       ['expiration'] = now() + SAMBA_DURATION,
       ['potency'] = potency,
     }
-    table.vprint(member)
     report()
   end
 end
@@ -2053,8 +2052,6 @@ windower.register_event('addon command', function(cmd, ...)
       update_ui_text()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
     elseif 'test' == cmd then
-      windower.add_to_chat(001, 'clock offset: '..clock_offset)
-      table.vprint(players[player.id])
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
