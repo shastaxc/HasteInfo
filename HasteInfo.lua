@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.19'
+_addon.version = '0.0.20'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -2068,8 +2068,6 @@ windower.register_event('addon command', function(cmd, ...)
       update_ui_text()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
     elseif 'test' == cmd then
-      table.vprint(indi_active)
-      table.vprint(geo_active)
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
