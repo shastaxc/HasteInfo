@@ -1,8 +1,9 @@
 log_name = 'hasteinfo_err.log'
 
 player = windower.ffxi.get_player()
-alliance = T{}
-current_alliance_ids = L{}
+
+alliance = T{} -- Only used to help read packets, resets often
+current_alliance_ids = L{} -- Only used to help read packets, resets often
 
 reports_paused = false
 
@@ -279,7 +280,6 @@ SAMBA_DURATION = 9 -- Assume samba lasts 9 seconds on players after hitting a mo
 ACTION_TYPE = T{
   ['SELF_MELEE'] = 'Self Melee',
   ['SELF_HASTE_JA'] = 'Self Haste JA',
-  ['ENTRUST_ACTIVATION'] = 'Entrust Activation',
   ['SPELL'] = 'Spell',
   ['BARD_SONG'] = 'Bard Song',
   ['GEOMANCY'] = 'Geomancy',

@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.23'
+_addon.version = '0.0.24'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -19,6 +19,7 @@ config = require('config')
 texts = require('texts')
 
 require('statics')
+require('job_determination')
 
 -- Modify the packets field mapping for incoming packet 0x0DD
 -- includes more fields than Windower does by default
@@ -83,8 +84,8 @@ function init()
 
       -- Create user if doesn't already exist
       local member = get_member(actor_id, actor.name)
-      -- Set zone info
-      member.zone = actor.zone
+      
+      member.zone = actor.zone -- Set zone info
     end
   end
   
@@ -125,7 +126,19 @@ function add_member(id, name)
   if not name then
     name = ''
   end
-  local new_member = {id=id, name=name, main='', main_lv=0, sub='', sub_lv=0, samba={}, songs=T{}, haste_effects=T{}, buffs=L{}}
+  local new_member = {
+    id=id,
+    name=name,
+    is_anon=true, -- Assume new members are anonymous until proven otherwise
+    main='',
+    main_lv=0,
+    sub='',
+    sub_lv=0,
+    samba={},
+    songs=T{},
+    haste_effects=T{},
+    buffs=L{}
+  }
   players[id] = new_member
   
   if settings.show_party then
@@ -225,17 +238,13 @@ function is_in_zone(member)
 end
 
 -- Packet should already be parsed
-function update_job_from_packet(member, packet)
+function update_job(member, main_job, sub_job, main_job_lv, sub_job_lv)
   if not member then return end
   local is_self = member.id == player.id
 
-  local main_job = packet['Main job'] or packet['Main Job']
   if not main_job then return end -- This can happen when changing jobs
   main_job = res.jobs[main_job].ens
-  local main_job_lv = packet['Main job level'] or packet['Main Job Level']
-  local sub_job =  packet['Sub job'] or packet['Sub Job']
-  sub_job = res.jobs[sub_job].ens
-  local sub_job_lv = packet['Sub job level'] or packet ['Sub Job Level']
+  sub_job = sub_job and res.jobs[sub_job] and res.jobs[sub_job].ens or sub_job
 
   if main_job == 'NON' and not is_self then
     -- Player is out of zone, assume their job has not changed
@@ -307,7 +316,6 @@ function parse_action(act, type)
       end
       add_haste_effect(me, haste_effect)
     end
-  elseif type == ACTION_TYPE.ENTRUST_ACTIVATION then
   elseif type == ACTION_TYPE.BARD_SONG then
     if not haste_triggers['Magic'][act.param] then return end
     local haste_effect = table.copy(haste_triggers['Magic'][act.param])
@@ -1248,6 +1256,23 @@ function percent(val)
   return result
 end
 
+function deduce_job_from_action(caster, act)
+  if not caster or not act or not caster.is_anon then return end
+
+  local category = (act.category == 4 and 'Magic') or (act.category == 6 and 'Job Abilities') or 0
+  -- Check if action is unique to one job
+  local unique_action = unique_actions[category][act.param]
+  
+  -- If job is different than current job, update job and also set sub to unknown
+  if unique_action and caster.main ~= unique_action.job then
+    caster.main = unique_action.job
+    caster.main_lv = 99
+    caster.sub = ''
+    caster.sub_lv = 0
+    update_ui_text()
+  end
+end
+
 
 -------------------------------------------------------------------------------
 -- UI Functions
@@ -1676,7 +1701,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     if playerId and playerId > 0 then
       if playerId == player.id then -- If player is me, add and/or update
         local member = get_member(playerId, nil)
-        update_job_from_packet(member, packet)
+        update_job(member, packet['Main job'], packet['Sub job'], packet['Main job level'], packet['Sub job level'])
       elseif playerId > FIRST_NPC_INDEX then -- If player is a trust...
         -- This means we are not in an alliance and they are in your party
         -- because trusts cannot exist in an alliance. Add and/or update member.
@@ -1684,7 +1709,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
       else
         local member = get_member(playerId, nil, true)
         if member then -- Don't create new users in this packet, only update job
-          update_job_from_packet(member, packet)
+          update_job(member, packet['Main job'], packet['Sub job'], packet['Main job level'], packet['Sub job level'])
         end
       end
     end
@@ -1707,7 +1732,16 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     local player_id = packet['ID']
 
     if current_alliance_ids:contains(player_id) then
-      alliance[player_id] = {id=player_id, name=packet['Name'], party=packet['Party Number'], zone=packet['Zone']}
+      alliance[player_id] = {
+        id=player_id,
+        name=packet['Name'],
+        party=packet['Party Number'],
+        zone=packet['Zone'],
+        main=packet['Main Job'],
+        sub=packet['Sub Job'],
+        main_lv=packet['Main Job Level'],
+        sub_lv=packet['Sub Job Level']
+      }
     end
 
     -- If this is the last player update, process all
@@ -1731,7 +1765,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
         
         if member then
           -- Update job info
-          update_job_from_packet(member, packet)
+          update_job(member, person.main, person.sub, person.main_lv, person.sub_lv)
 
           -- Update zone info
           local new_zone = person.zone
@@ -1858,21 +1892,32 @@ windower.register_event('action', function(act)
   if act.category == 1 and player.id == act.actor_id then -- Melee attack
     parse_action(act, ACTION_TYPE.SELF_MELEE)
   elseif act.category == 6 then -- JA; Only care about JA on self, except Entrust
-    if act.actor_id == player.id and haste_triggers['Job Ability'][act.param] then
-      parse_action(act, ACTION_TYPE.SELF_HASTE_JA)
-    elseif act.param == 386 then -- Entrust activation
-      parse_action(act, ACTION_TYPE.ENTRUST_ACTIVATION)
+    if act.actor_id == player.id then
+      if haste_triggers['Job Ability'][act.param] then
+        parse_action(act, ACTION_TYPE.SELF_HASTE_JA)
+      end
+    else -- If caster is an anon party member, try to deduce their job
+      local caster = get_member(act.actor_id, nil, true)
+      deduce_job_from_action(caster, act)
     end
-  elseif act.category == 4 and players[act.targets[1].id] then -- Spell finish casting on party member target
-    -- Determine if bard song, geomancy, or other
-    local spell = res.spells[act.param]
-    if spell then
-      if spell.type == 'BardSong' and haste_triggers['Magic'][act.param] then
-        parse_action(act, ACTION_TYPE.BARD_SONG)
-      elseif spell.type == 'Geomancy' then
-        parse_action(act, ACTION_TYPE.GEOMANCY)
-      elseif haste_triggers['Magic'][act.param] then
-        parse_action(act, ACTION_TYPE.SPELL)
+  elseif act.category == 4 then -- Spell finish casting
+    -- If caster is an anon party member, try to deduce their job
+    if act.actor_id ~= player.id then
+      local caster = get_member(act.actor_id, nil, true)
+      deduce_job_from_action(caster, act)
+    end
+
+    if players[act.targets[1].id] then -- Target is party member
+      -- Determine if bard song, geomancy, or other
+      local spell = res.spells[act.param]
+      if spell then
+        if spell.type == 'BardSong' and haste_triggers['Magic'][act.param] then
+          parse_action(act, ACTION_TYPE.BARD_SONG)
+        elseif spell.type == 'Geomancy' then
+          parse_action(act, ACTION_TYPE.GEOMANCY)
+        elseif haste_triggers['Magic'][act.param] then
+          parse_action(act, ACTION_TYPE.SPELL)
+        end
       end
     end
   elseif act.category == 3 and player.id == act.actor_id and haste_triggers['Weapon Skill'][act.param] then -- Finish WS, only care about Catastrophe
