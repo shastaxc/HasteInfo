@@ -1398,7 +1398,7 @@ function update_ui_text(force_update)
         current_line = current_line..divider_str(current_line)
 
         local effect_str = '' -- Format as: <space(s)> potency <space> triggering action name
-        local potency_str = potency_str(effect.potency, effect.is_debuff)
+        local potency_str = potency_str(effect.potency, effect.haste_category == 'debuff')
         effect_str = effect_str..potency_str..' '.. effect.triggering_action
         lines[line_count] = current_line..effect_str
 
@@ -1417,13 +1417,13 @@ end
 function potency_str(potency, is_debuff)
   potency = settings.show_fractions and potency or string.format('%.1f', percent(potency))
   local potency_str = ''
-  local potency_space_count = 5 - (is_debuff and 1 or 0) - tostring(potency):length() -- Potency only goes up to 4 digits (plus negative sign)
+  local potency_space_count = 4 - (is_debuff and 1 or 0) - tostring(potency):length()
 
   -- Add spaces before potency
   for i=0,potency_space_count do
     potency_str = potency_str..' '
   end
-  potency_str = potency_str..(is_debuff and '-' or '')..tostring(potency)..(settings.show_fractions and '' or '%')
+  potency_str = potency_str..(is_debuff and '-' or ' ')..tostring(potency)..(settings.show_fractions and '' or '%')
   return potency_str
 end
 
@@ -1722,7 +1722,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
           member = get_member(person.id, person.name)
         elseif in_alliance and person.party == 0 then -- Person left alliance/party
           alliance[person.id] = nil -- Stop tracking alliance member
-          member = get_member(player_id, player_name, true)
+          member = get_member(person.id, person.name, true)
           if member then
             remove_member(member.id) -- Stop tracking party member
             member = nil
