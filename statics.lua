@@ -1,7 +1,8 @@
 log_name = 'hasteinfo_err.log'
 
 player = windower.ffxi.get_player()
-current_alliance_ids = S{}
+alliance = T{}
+current_alliance_ids = L{}
 
 reports_paused = false
 

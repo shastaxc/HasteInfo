@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.21'
+_addon.version = '0.0.22'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -934,7 +934,7 @@ function update_songs(member, buffs)
                 keep_songs:append(old_song)
                 break
               else
-                -- Do I need to handle this case?
+                -- Do I need to handle this case? Can trigger if you get a song and then lose it right after (gets overwritten)
                 print('Unhandled case in lost song determination.')
               end
             end
@@ -1642,20 +1642,21 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
 
     parse_buffs(data)
   elseif id == 0x0C8 then -- Alliance status update
-    -- Triggers after party/alliance members join/leave, after leadership changes,
+    -- Triggers after party/alliance members join, after leadership changes,
     -- and after someone changes zone (including yourself)
     -- Includes 'ID 1' through 'ID 18' for all alliance members, in no particular order
-    -- This update comes in just before a bunch of 0x0DD packets, and we can use this list
+    -- This update always precedes a bunch of 0x0DD packets, and we can use this list
     -- to determine if those subsequent 0x0DD updates are for current, new, or leaving members.
 
     local packet = packets.parse('incoming', data)
     
-    current_alliance_ids = S{}
+    alliance = T{}
+    current_alliance_ids = L{}
     -- Update tracked alliance members
     for i=1,18 do
       local player_id = packet['ID '..i]
       if player_id > 0 then -- ID == 0 is empty party slot
-        current_alliance_ids:add(player_id)
+        current_alliance_ids:append(player_id)
       end
     end
   
@@ -1703,54 +1704,48 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     -- If Party Number == 0 and not in alliance and IS in current_alliance_ids, add/update them.
 
     local packet = packets.parse('incoming', data)
-    
     local player_id = packet['ID']
-    local player_name = packet['Name']
-    local party_number = packet['Party Number']
-    local party_info = windower.ffxi.get_party()
-    local member
 
-    if party_info then
-      local in_alliance = party_info.alliance_leader ~= nil
-  
-      -- Filter out unwanted cases
-      if party_number == 2 or party_number == 3 then -- Alliance member
-        -- Do nothing
-      elseif (party_number == 0 and in_alliance) then -- Player is leaving
-        member = get_member(player_id, player_name, true)
-        if member then
-          remove_member(member.id)
-          member = nil
-        end
-      elseif (party_number == 0 and not in_alliance and not current_alliance_ids:contains(player_id)) then
-        member = get_member(player_id, player_name, true)
-        if member then
-          remove_member(member.id)
-          member = nil
-        end
-      else
-        -- If we made it past those filters, add/update member
-        member = get_member(player_id, player_name)
-      end
-    else -- If we can't get alliance info, we can't do anything but update jobs and zone
-      member = get_member(player_id, player_name, true)
+    if current_alliance_ids:contains(player_id) then
+      alliance[player_id] = {id=player_id, name=packet['Name'], party=packet['Party Number'], zone=packet['Zone']}
     end
 
-    if member then
-      -- Update zone info
-      local new_zone = packet['Zone']
-      local old_zone = member.zone
-      if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
-        member.zone = new_zone
+    -- If this is the last player update, process all
+    if alliance:length() == current_alliance_ids.n then
+      local me_update = alliance[player.id]
+      local me = get_member(player.id, player.name)
+      local in_alliance = me_update.party ~= 0
+      
+      for person in alliance:it() do
+        local member
+        if person.party == me_update.party then -- Person is in my party add/update them
+          member = get_member(person.id, person.name)
+        elseif in_alliance and person.party == 0 then -- Person left alliance/party
+          alliance[person.id] = nil -- Stop tracking alliance member
+          member = get_member(player_id, player_name, true)
+          if member then
+            remove_member(member.id) -- Stop tracking party member
+            member = nil
+          end
+        end
         
-        -- If player just left zone that main player is in, reset buffs
-        local me = get_member(player.id, player.name)
-        if me and member.id ~= me.id and old_zone == me.zone then
-          remove_zoned_effects(member)
+        if member then
+          -- Update job info
+          update_job_from_packet(member, packet)
+
+          -- Update zone info
+          local new_zone = person.zone
+          local old_zone = member.zone
+          if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
+            member.zone = new_zone
+            
+            -- If player just left zone that main player is in, reset buffs
+            if me and member.id ~= me.id and old_zone == me.zone then
+              remove_zoned_effects(member)
+            end
+          end
         end
       end
-      
-      update_job_from_packet(member, packet)
     end
   elseif id == 0x063 then -- Set Update packet
     -- Sends buff ID and expiration for all of main player's current buffs
