@@ -91,7 +91,6 @@ Sources of Haste accounted for:
 * DRG Spirit Link
 * Last Resort
 * Catastrophe aftermath with Apocalypse ilvl 119
-* Other weapon additional effect such as Blurred Knife
 
 ### Assumptions
 
@@ -99,29 +98,27 @@ Sources of Haste accounted for:
 * All GEOs have Idris (will add whitelist and blacklist feature later)
 * All BRDs have max bonus to Marches (will add whitelist and blacklist feature later)
 * BRDs are not overwriting other BRD's songs (but ok if they overwrite their own), and that all their song durations are consistent (at least within a song type like same duration for all Marches).
-* Haste Samba is from sub DNC, unless there is a main DNC in your party. Main DNC assumed to have 5/5 Haste Samba potency merits if it's not yourself.
+* Haste Samba is from sub DNC, unless there is a main DNC in your party. Main DNC assumed to have 5/5 Haste Samba potency merits if it's not yourself. It will detect your actual merit allocations if you are the DNC.
 * SCH casting Embrava has 500+ Enhancing Magic skill (capped Embrava potency)
 * Assumes DRG Spirit Link Haste is already on if reloading addon (no buff on player to tell for sure)
 * Assumes no Haste Samba is active if reloading addon (no buff on player to tell for sure)
 * Is Haste aura from Entrusted Indi-Haste vs Indi-Haste/Geo-Haste?
   - First priority is listening to packets and detecting when an Indi-Haste is casted, then mark the target. If the
-  target is the same as the caster, it's not entrusted. If Geo-Haste is casted, assume there's no 2nd Entrusted Indi-Haste.
-  - By tracking all buffs on the party's GEOs. Watch for the "coloure active" buff to appear on the GEO, and then
-  capture the aura buff that appears on them right after. If the Coloure Active buff and Indi buff appear on them
-  within the same polling cycle, assume that's the one that was applied. By tracking all buffs on all players, you can
-  ignore certain effects that may apply or fall off of the GEO to avoid race conditions.
-* Catastrophe comes from Apocalypse ilvl 119, making it JA haste. All lower ilvl of Apoc grant equipment haste instead, which is
-ignored by HasteInfo.
+  target is the same as the caster, it's not entrusted.
+  - By tracking all party member buffs. Watch for the "coloure active" buff to appear, and then capture the aura buff
+  that appears on them right after. If the Coloure Active buff and Indi buff appear on them within the same update
+  packet, assume that's the one that was applied.
+* Unknown sources of Haste will be assumed to be 150/1024 (~15%).
+  - This includes additional effect items such as Blurred Knife +1. The client receives no indication at all where that form of haste comes from, only that you received the buff.
 * Unknown sources of Slow will be assumed to be -300/1024 (~29.3%).
 * Unknown sources of Elegy will be assumed to be -512/1024 (50%).
-* Unknown sources of Haste will be assumed to be -150/1024 (~15%).
-  - This includes additional effect items such as Blurred Knife +1. The client receives no indication at all where that form of haste comes from, only that you received the buff.
-* Anonymous jobs must be deduced by the spells and abilities used, but only DNC really needs to be tracked.
-* Magic haste can only be summed to a cap of 1024/1024 before subtracting debuffs before applying the usual magic haste cap. For example, if we have Haste II, Embrava, Idris Geo-Haste, Victory March, Honor March, and Weakness without the assumed summation cap of 1024, that should add up to 1469 (buffs) - 1024 (weakness) = 445, which is almost capped for magic haste. However, I believe it would really end up capping the buff summation at 1024 and then weakness subtracts 1024 and we're left with a magic haste of 0. This needs to be confirmed.
+* Magic haste can only be summed to a cap of 1024/1024 before subtracting debuffs before applying the usual magic haste cap. For example, if we have Haste II, Embrava, Idris Geo-Haste, Victory March, Honor March, and Weakness without the assumed summation cap of 1024, that should add up to 1469 (buffs) - 1024 (weakness) = 445, which is almost capped for magic haste. However, I believe it would really end up capping the buff summation at 1024 and then weakness subtracts 1024 and we're left with a magic haste of 0.
 
 ## Misc Info
 
-* If an action is taken on a party member who already has the corresponding buff, the result may be either "no effect" or overriding the current buff. If overriding the current buff, it could be either the same or stronger potency so this has to be updated. There is no incoming party buff packet (id 0x076) when this happens because the buff icons do not change, so we have to rely on the action packet and if it gets dropped, haste values simply remain incorrect. For the primary player though, we receive buff durations along with their buff update packet, and this can be used to match with current buffs to determine if there was a change but there's no way to determine the source so we'll assume it was the same effect that refreshed it.
+* Anonymous players must have their jobs deduced by the spells and abilities used. Also, examining someone will parse through their equipped gear and try to find a piece that can only be equipped by a single job, then marks them as having that main job.
+* Catastrophe comes from Apocalypse ilvl 119, making it JA haste. All lower ilvl of Apoc grant equipment haste instead, which is ignored by HasteInfo.
+* If an action is taken on a party member who already has the corresponding buff, the result may be either "no effect" or overriding the current buff. If overriding the current buff, it could be either the same or stronger potency so this has to be updated. There is no incoming party buff packet (id 0x076) when this happens because the buff icons do not change, so we have to rely on the action packet and if it gets dropped, haste values simply remain incorrect. For the primary player though, we receive buff durations along with their buff update packet, and this can be used to match with current buffs to determine if there was a change but there's no way to determine the source so we'll assume it was the same effect that refreshed it. This is part of the reason songs are not tracked for party members.
 * GEO spells can have an effect on the primary user even though no action was performed on them. Indi- spells are tracked by pegging them to the player who was targeted (in case of Entrusted spells) as well as tracking who casted them (since the caster affects potency too as long as it's not an Entrusted spell). Geo- spells are pegged to the caster since they cannot ever be "owned" by another player. When a GEO buff appears on a player, we can look up the previous actions taken and determine who casted it, and therefore its potency.
 * Sambas are not detected as buffs, but can be detected based on the spike animation when you perform a melee attack. It is then tracked in a special table called `samba` which tracks the expiration timestamp of the effect based on the time of your melee attack that gained you the buff. It remains tracked until HasteInfo has to report haste values. At that point, it is determined if the buff is expired or not. Alternatively, disengaging from a mob or performing a melee attack that lacks the animation will also clear the tracked samba effect.
 * Bard songs are annoying in the sense that buff IDs are not specific for individual songs. All marches have the same buff ID (214), and simply appear that you have multiple of the same buff. This is the only situation where you can have multiple buff IDs active at the same time (at least as far as haste-related buffs go). For this reason, active bard songs are maintained separately from the other buffs because it doesn't fit the logic used for all other buffs.
@@ -129,7 +126,7 @@ ignored by HasteInfo.
 
 ## TODO / Known Issues
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
-* Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
+* Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
 * Update player table when changing merits and job point allocations. Update DW if necessary.
 * Fix: Not detecting weakness debuff immediately after raising.
 * Verify that debuff effects are properly detected and calculated:
