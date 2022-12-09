@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.25'
+_addon.version = '0.0.26'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1938,7 +1938,10 @@ windower.register_event('action message', function(actor_id, target_id, actor_in
 end)
 
 -- Triggers on player status change. This only triggers for the following statuses:
--- Idle, Engaged, Resting, Dead
+-- 0: idle
+-- 1: engaged
+-- 2: dead
+-- 4: in menu
 windower.register_event('status change', function(new_status_id, old_status_id)
   -- In any of these status change scenarios, haste samba status should be reset
   -- Other effects will update from the buff update packet
@@ -1948,9 +1951,9 @@ windower.register_event('status change', function(new_status_id, old_status_id)
   end
 
   -- Hide UI while dead
-  if new_status_id == 3 then
+  if new_status_id == 2 then
     hide_ui()
-  elseif old_status_id == 3 then
+  elseif old_status_id == 2 then
     show_ui()
   end
 end)
