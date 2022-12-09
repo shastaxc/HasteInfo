@@ -1941,7 +1941,8 @@ end)
 -- 0: idle
 -- 1: engaged
 -- 2: dead
--- 4: in menu
+-- 3: engaged while dead
+-- 4: in menu, cutscene, some forms of zoning
 windower.register_event('status change', function(new_status_id, old_status_id)
   -- In any of these status change scenarios, haste samba status should be reset
   -- Other effects will update from the buff update packet
