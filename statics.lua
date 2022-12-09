@@ -211,7 +211,7 @@ haste_triggers = T{
     [105] = {triggering_action='Catastrophe', triggering_id=105, buff_name='Aftermath', buff_id=273, haste_category='ja', trigger_category='Weapon Skill', trigger_sub_category='Scythe', persists_thru_zoning=false, potency_base=102}, -- Exact potency unknown
   },
   ['Other'] = {
-    [  0] = {triggering_action='Weakness', triggering_id=0, buff_name='Slow', buff_id=1, haste_category='debuff', trigger_category='', trigger_sub_category='', persists_thru_zoning=false, potency_base=1024, potency=1024},
+    [  0] = {triggering_action='Weakness', triggering_id=0, buff_name='Slow', buff_id=1, haste_category='debuff', trigger_category='', trigger_sub_category='', persists_thru_zoning=true, potency_base=1024, potency=1024},
     [  1] = {triggering_action='Unknown Haste', triggering_id=0, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Unknown', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=150, potency=150},
     [  2] = {triggering_action='Unknown GEO Haste', triggering_id=0, buff_name='Haste', buff_id=580, haste_category='ma', trigger_category='Magic', trigger_sub_category='Geomancy', persists_thru_zoning=false, potency_base=307, potency=427},
     [  3] = {triggering_action='Unknown Slow', triggering_id=0, buff_name='Slow', buff_id=13, haste_category='debuff', trigger_category='Magic', trigger_sub_category='Unknown', persists_thru_zoning=false, potency_base=300, potency=300}, -- Assume enemies have base potency

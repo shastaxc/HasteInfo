@@ -131,7 +131,7 @@ ignored by HasteInfo.
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
 * Update player table when changing merits and job point allocations. Update DW if necessary.
-* Fix hiding UI while zoning (this used to work...)
+* Fix: Not detecting weakness debuff immediately after raising.
 * Verify that debuff effects are properly detected and calculated:
   - Battlefield Elegy (-256/1024)
   - Carnage Elegy (-512/1024)

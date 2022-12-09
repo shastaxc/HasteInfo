@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.26'
+_addon.version = '0.0.27'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1324,7 +1324,7 @@ function update_ui_text(force_update)
       eq_haste = inline_green..eq_haste..default_color
     end
     debuff = settings.show_fractions and stats.haste.debuff.actual.fraction or string.format('%.1f', stats.haste.debuff.actual.percent)
-    if stats.haste.debuff.actual.fraction < 0 then
+    if stats.haste.debuff.actual.fraction > 0 then
       debuff = inline_red..'-'..debuff..default_color
     end
   end
@@ -1425,13 +1425,13 @@ end
 function potency_str(potency, is_debuff)
   potency = settings.show_fractions and potency or string.format('%.1f', percent(potency))
   local potency_str = ''
-  local potency_space_count = 4 - (is_debuff and 1 or 0) - tostring(potency):length()
+  local potency_space_count = (4 + (is_debuff and 0 or 1)) - tostring(potency):length()
 
   -- Add spaces before potency
-  for i=0,potency_space_count do
+  for i=1,potency_space_count do
     potency_str = potency_str..' '
   end
-  potency_str = potency_str..(is_debuff and '-' or ' ')..tostring(potency)..(settings.show_fractions and '' or '%')
+  potency_str = potency_str..(is_debuff and '-' or '')..tostring(potency)..(settings.show_fractions and '' or '%')
   return potency_str
 end
 
@@ -1447,7 +1447,7 @@ function divider_str(current_line)
     for i=0,forespace_count do
       divider_str = divider_str..' '
     end
-    divider_str = divider_str..' | '
+    divider_str = divider_str..' |'
   end
 
   return divider_str
@@ -1951,9 +1951,9 @@ windower.register_event('status change', function(new_status_id, old_status_id)
   end
 
   -- Hide UI while dead
-  if new_status_id == 2 then
+  if new_status_id == 2 or new_status_id == 4 then
     hide_ui()
-  elseif old_status_id == 2 then
+  elseif old_status_id == 2 or new_status_id == 4 then
     show_ui()
   end
 end)
@@ -1968,7 +1968,7 @@ windower.register_event('outgoing chunk', function(id, data, modified, injected,
       -- Update tracked dw traits
       read_dw_traits()
     end
-  elseif id == 0x05E then -- Start leaving zone
+  elseif id == 0x00D then -- Start leaving zone
     hide_ui()
   elseif id == 0x00D then -- Last packet sent when leaving zone
     local member = get_member(player.id, player.name)
@@ -2029,23 +2029,19 @@ windower.register_event('addon command', function(cmd, ...)
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Reloading.')
     elseif S{'visible', 'vis'}:contains(cmd) then
       settings.show_ui = not settings.show_ui
-      settings:save()
       toggle_ui()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'show' == cmd then
       settings.show_ui = true
-      settings:save()
       show_ui()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'hide' == cmd then
       settings.show_ui = false
-      settings:save()
       hide_ui()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'resetpos' == cmd then
       settings.display.pos.x = 0
       settings.display.pos.y = 0
-      settings:save()
       ui:pos(0, 0)
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI position reset to default.')
     elseif S{'detail', 'details'}:contains(cmd) then
