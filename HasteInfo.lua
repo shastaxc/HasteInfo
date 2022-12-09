@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.24'
+_addon.version = '0.0.25'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1256,23 +1256,6 @@ function percent(val)
   return result
 end
 
-function deduce_job_from_action(caster, act)
-  if not caster or not act or not caster.is_anon then return end
-
-  local category = (act.category == 4 and 'Magic') or (act.category == 6 and 'Job Abilities') or 0
-  -- Check if action is unique to one job
-  local unique_action = unique_actions[category][act.param]
-  
-  -- If job is different than current job, update job and also set sub to unknown
-  if unique_action and caster.main ~= unique_action.job then
-    caster.main = unique_action.job
-    caster.main_lv = 99
-    caster.sub = ''
-    caster.sub_lv = 0
-    update_ui_text()
-  end
-end
-
 
 -------------------------------------------------------------------------------
 -- UI Functions
@@ -1666,6 +1649,18 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     -- Does not include trusts, so do not use this packet to remove members missing from the update
 
     parse_buffs(data)
+  elseif id == 0x0C9 then -- Triggers when examining someone
+    -- Has a "Type" field which changes what data is received
+    -- An examination event can result in multiple of this packet type being sent in succession
+    -- Type 1 includes job and linkshell info
+    -- Type 3 includes gear info; can only include 8 pieces at a time, so will send 2 of these if needed
+    local packet = packets.parse('incoming', data)
+    if packet['Type'] == 1 then -- Contains job info
+      local member = get_member(packet['Target ID'], nil, true)
+      update_job(member, packet['Main Job'], packet['Sub Job'], packet['Main Job Level'], packet['Sub Job Level'])
+    elseif packet['Type'] == 3 then -- Contains gear info
+      deduce_job_from_examination(packet)
+    end
   elseif id == 0x0C8 then -- Alliance status update
     -- Triggers after party/alliance members join, after leadership changes,
     -- and after someone changes zone (including yourself)
@@ -1889,6 +1884,8 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
 end)
 
 windower.register_event('action', function(act)
+  deduce_job_from_action(act)
+
   if act.category == 1 and player.id == act.actor_id then -- Melee attack
     parse_action(act, ACTION_TYPE.SELF_MELEE)
   elseif act.category == 6 then -- JA; Only care about JA on self, except Entrust
@@ -1896,17 +1893,8 @@ windower.register_event('action', function(act)
       if haste_triggers['Job Ability'][act.param] then
         parse_action(act, ACTION_TYPE.SELF_HASTE_JA)
       end
-    else -- If caster is an anon party member, try to deduce their job
-      local caster = get_member(act.actor_id, nil, true)
-      deduce_job_from_action(caster, act)
     end
   elseif act.category == 4 then -- Spell finish casting
-    -- If caster is an anon party member, try to deduce their job
-    if act.actor_id ~= player.id then
-      local caster = get_member(act.actor_id, nil, true)
-      deduce_job_from_action(caster, act)
-    end
-
     if players[act.targets[1].id] then -- Target is party member
       -- Determine if bard song, geomancy, or other
       local spell = res.spells[act.param]

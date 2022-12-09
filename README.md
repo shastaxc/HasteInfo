@@ -130,8 +130,6 @@ ignored by HasteInfo.
 ## TODO / Known Issues
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this is just a "lost buff" packet, which would be even better.
-* Update party member job info based on "examine" packet 0x0C9.
-* Deduce party member job based on "examine" packet 0x0C9 gear info.
 * Update player table when changing merits and job point allocations. Update DW if necessary.
 * Fix hiding UI while dead (currently remains visible)
 * Fix hiding UI while zoning (this used to work...)

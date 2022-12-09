@@ -215,3 +215,70 @@ for _,spell in pairs(res.spells) do
     end
   end
 end
+
+function deduce_job_from_action(act)
+  if not act or act.actor_id == player.id then return end -- We always know our own job
+
+  -- If caster is an anon party member, try to deduce their job
+  local caster = get_member(act.actor_id, nil, true)
+  if not caster or not caster.is_anon then return end
+
+  local category
+  local action_id
+  if act.category == 8 then
+    category = 'Magic'
+    action_id = act.targets[1] and act.targets[1].actions[1] and act.targets[1].actions[1].param
+  elseif act.category == 6 or act.category == 14 or act.category == 15 then
+    category = 'Job Abilities'
+    action_id = act.param
+  end
+  
+  if not category or not action_id then return end -- Not an action we can use for this
+
+  -- Check if action is unique to one job
+  local unique_action = unique_actions[category][action_id]
+  
+  -- If job is different than current job, update job and also set sub to unknown
+  if unique_action and caster.main ~= unique_action.job then
+    caster.main = unique_action.job
+    caster.main_lv = 99
+    caster.sub = ''
+    caster.sub_lv = 0
+    update_ui_text()
+  end
+end
+
+-- Using data from incoming packet 0x0C9 Type 3, triggered when examining a player
+function deduce_job_from_examination(packet)
+  -- Get player and determine if it's an anonymous party member
+  local member = get_member(packet['Target ID'], nil, true)
+
+  -- Only need to deduce job for players who are in party and anon
+  if member and member.is_anon then
+    -- Iterate through all possible items in packet
+    for i=1,8 do
+      local item_id = packet['Item '..i]
+      if not item_id then break end
+  
+      local item_detail = res.items[item_id] -- Pull item details so we can see jobs on the item
+      -- Count jobs and grab job if it's the only one
+      local count = 0
+      local only_job
+      for job in item_detail.jobs:it() do
+        only_job = job
+        count = count + 1
+      end
+      if count == 1 then -- Only 1 job on this item, update job and stop processing packet
+        local job = res.jobs[only_job].ens
+        if member.main ~= job then -- Update player's job
+          member.main = job
+          member.main_lv = 99
+          member.sub = ''
+          member.sub_lv = 0
+          update_ui_text()
+        end
+        break
+      end
+    end
+  end
+end
