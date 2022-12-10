@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.27'
+_addon.version = '0.0.28'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -423,8 +423,6 @@ function parse_action(act, type)
         haste_effect.multipliers[STR.BOG] = bog_multiplier
         add_geo_effect(haste_effect)
       end
-  
-      add_haste_effect(target_member, haste_effect)
     else -- If not a haste spell, still see if this is replacing an existing effect
       -- Even if not a haste geo spell, we should track if it's ending a current one
       if is_indi then
@@ -709,6 +707,7 @@ function deduce_haste_effects(member, new_buffs)
             update_songs(member, new_buffs)
           end
         elseif buff.id == GEO_HASTE_BUFF_ID then -- Geomancy
+          local effect
           -- Get haste effect from indi- and geo- tables
           local found_indi = indi_active:with('buff_id', buff.id)
           local found_geo = geo_active:with('buff_id', buff.id)
@@ -723,12 +722,12 @@ function deduce_haste_effects(member, new_buffs)
                 all_buffs_empty = false
               end
               -- If Cornelia in party, assume it's her haste
-              if p.name == 'Cornelia' then
-                haste_effect = table.copy(haste_triggers['Magic'][771])
-                haste_effect.potency = haste_effect.potency_base
-                haste_effect.caster_id = p.id
-                haste_effect.target_id = p.id
-                add_indi_effect(haste_effect)
+              if p.name == 'Cornelia' and p.is_trust then
+                effect = table.copy(haste_triggers['Magic'][771])
+                effect.potency = effect.potency_base
+                effect.caster_id = p.id
+                effect.target_id = p.id
+                add_indi_effect(effect)
               elseif p.main == 'GEO' and not p.is_trust then
                 geo_in_pt = p
               elseif p.buffs and p.buffs:contains(COLURE_ACTIVE_ID) and not indi_active[p.id] then
@@ -740,40 +739,40 @@ function deduce_haste_effects(member, new_buffs)
 
             -- If all other players' buff lists are empty, assume we haven't rec'd a buff update packet yet
             -- or if there's no detected GEO, mark as unknown buff
-            if not haste_effect and (all_buffs_empty or not geo_in_pt) then
-              haste_effect = table.copy(haste_triggers['Other'][2])
+            if not effect and (all_buffs_empty or not geo_in_pt) then
+              effect = table.copy(haste_triggers['Other'][2])
             end
 
             -- Assume that if anyone is Entrusted but not on indi-active table, that is the Indi-Haste (prefer self)
-            if not haste_effect and geo_in_pt and entrusted_member then
-              haste_effect = table.copy(haste_triggers['Magic'][771])
-              haste_effect.potency = haste_effect.potency_base * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
-              haste_effect.caster_id = geo_in_pt.id
-              haste_effect.target_id = entrusted_member.id
-              add_indi_effect(haste_effect)
+            if not effect and geo_in_pt and entrusted_member then
+              effect = table.copy(haste_triggers['Magic'][771])
+              effect.potency = effect.potency_base * (effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+              effect.caster_id = geo_in_pt.id
+              effect.target_id = entrusted_member.id
+              add_indi_effect(effect)
             end
 
             -- If no one has Colure Active, assume it's a Geo-Haste
-            if not haste_effect and not entrusted_member and
+            if not effect and not entrusted_member and
                 (geo_in_pt and geo_in_pt.buffs and not geo_in_pt.buffs:contains(COLURE_ACTIVE_ID) and not geo_active[geo_in_pt.id]) then
-              haste_effect = table.copy(haste_triggers['Magic'][801])
-              haste_effect.potency = haste_effect.potency_base * (haste_effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
-              haste_effect.caster_id = geo_in_pt.id
-              add_geo_effect(haste_effect)
+                  effect = table.copy(haste_triggers['Magic'][801])
+                  effect.potency = effect.potency_base * (effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+                  effect.caster_id = geo_in_pt.id
+              add_geo_effect(effect)
             end
           elseif found_indi and found_geo then -- Found both active indi- or geo-haste
             -- Determine which effect is stronger
             -- Take potency and add its multipliers
-            local indi_mult = found_indi.multipliers and math.min(found_indi.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
-            local geo_mult = found_geo.multipliers and math.min(found_geo.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
+            local indi_mult = total_multiplier(found_indi.multipliers, GEOMANCY_JA_MULTIPLIER_MAX)
+            local geo_mult = total_multiplier(found_geo.multipliers, GEOMANCY_JA_MULTIPLIER_MAX)
             
             if (found_indi.potency * indi_mult) >= (found_geo.potency * geo_mult) then
-              haste_effect = table.copy(found_indi)
+              effect = table.copy(found_indi)
             else
-              haste_effect = table.copy(found_geo)
+              effect = table.copy(found_geo)
             end
           else -- Only one effect found
-            haste_effect = (found_indi and table.copy(found_indi)) or (found_geo and table.copy(found_geo))
+            effect = (found_indi and table.copy(found_indi)) or (found_geo and table.copy(found_geo))
           end
         elseif not skip then
           -- Unknown source, guess at potency
@@ -1107,8 +1106,6 @@ function reconcile_buff_update(member, new_buffs)
       update_geomancy_effect_multiplier(member.id, STR.BOLSTER, false)
     elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve the effect of losing EA
       update_geomancy_effect_multiplier(member.id, STR.EA, false)
-    elseif buff.id == BOG_BUFF_ID then -- Resolve the effect of losing BoG
-      update_geomancy_effect_multiplier(member.id, STR.BOG, false)
     elseif buff.id == COLURE_ACTIVE_ID then
       -- If lost buff is Colure Active, and this player was tracked as an indi target, remove from indi table
       remove_indi_effect(member.id)
@@ -1141,10 +1138,6 @@ function update_geomancy_effect_multiplier(caster_id, multiplier_name, is_gained
     update_indi = false
     update_geo = true
     new_multiplier = is_gained and ECLIPTIC_ATTRITION_MULTIPLIER or 1
-  elseif multiplier_name == STR.BOG then
-    update_indi = false
-    update_geo = not is_gained
-    new_multiplier = is_gained and BOG_MULTIPLIER or 1
   end
 
   local found_effect
@@ -1162,12 +1155,15 @@ function update_geomancy_effect_multiplier(caster_id, multiplier_name, is_gained
   end
 end
 
-function add_multipliers(m1, m2)
-  if not m1 then m1 = 1 end
-  if not m2 then m2 = 1 end
-  m1 = math.max(m1 - 1, 0)
-  m2 = math.max(m2 - 1, 0)
-  return m1 + m2 + 1
+function total_multiplier(multipliers, max)
+  if not multipliers then return 1 end
+  local sum = 0
+  for m in multipliers:it() do
+    if m then
+      sum = sum + m - 1
+    end
+  end
+  return math.min(sum + 1, max)
 end
 
 -- Takes stringified binary number and converts to decimal number
@@ -1254,6 +1250,47 @@ function percent(val)
     return string.format('%.1f', result) + '%'
   end
   return result
+end
+
+-- Use the indi- and geo- tables to select the strongest haste effect
+function get_geomancy_effect(member)
+  if not member or not member.buffs then return end
+
+  for buff in member.buffs:it() do
+    if buff.id == GEO_HASTE_BUFF_ID then
+      -- Find strongest Geomancy Haste buff currently active
+      -- Find strongest buff in indi table
+      local strongest_effect
+      local strongest_potency
+      for effect in indi_active:it() do
+        local multiplier = total_multiplier(effect.multipliers, GEOMANCY_JA_MULTIPLIER_MAX)
+        local potency = math.floor(effect.potency * multiplier)
+        if strongest_effect == nil or strongest_potency < potency then
+          strongest_effect = effect
+          strongest_potency = potency
+        end
+      end
+      for effect in geo_active:it() do
+        local multiplier = total_multiplier(effect.multipliers, GEOMANCY_JA_MULTIPLIER_MAX)
+        local potency = math.floor(effect.potency * multiplier)
+        if strongest_effect == nil or strongest_potency < potency then
+          strongest_effect = effect
+          strongest_potency = potency
+        end
+      end
+      if strongest_effect then
+        -- Update with its potency with multipliers
+        local effect = table.copy(strongest_effect)
+        effect.potency = strongest_potency
+        return effect
+      else
+        -- Not tracking any indi- or geo- buffs, so just assume an effect
+        local effect = table.copy(haste_triggers['Other'][2])
+        return effect
+      end
+      break -- Can only have one active geomancy haste buff; no need to check the rest of the buffs
+    end
+  end
 end
 
 
@@ -1390,7 +1427,8 @@ function update_ui_text(force_update)
         current_line = current_line..divider_str(current_line)
 
         local effect_str = '' -- Format as: buff icon <space> potency <space> triggering action name
-        local potency_str = potency_str(effect.potency)
+        local potency = math.floor(effect.potency * total_multiplier(effect.multipliers, SONG_JA_MULTIPLIER_MAX))
+        local potency_str = potency_str(potency)
         effect_str = effect_str..potency_str..' '.. effect.triggering_action
         lines[line_count] = current_line..effect_str
 
@@ -1399,6 +1437,27 @@ function update_ui_text(force_update)
   
       -- Add haste effects to display
       for effect in me.haste_effects:it() do
+        -- Update to current line
+        current_line = lines[line_count] or ''
+
+        -- Add divider to current line
+        current_line = current_line..divider_str(current_line)
+
+        local effect_str = '' -- Format as: <space(s)> potency <space> triggering action name
+        local potency = effect.potency
+        if effect.trigger_sub_category=='Geomancy' then
+          potency = math.floor(effect.potency * total_multiplier(effect.multipliers, GEOMANCY_JA_MULTIPLIER_MAX))
+        end
+        local potency_str = potency_str(potency, effect.haste_category == 'debuff')
+        effect_str = effect_str..potency_str..' '.. effect.triggering_action
+        lines[line_count] = current_line..effect_str
+
+        line_count = line_count + 1 -- Increment line for next effect
+      end
+      
+      -- Add geo effects to display
+      local effect = get_geomancy_effect(me)
+      if effect then
         -- Update to current line
         current_line = lines[line_count] or ''
 
@@ -1489,49 +1548,21 @@ function calculate_stats()
 
   -- Sum potency of all effects by category (ma, ja, debuff) in uncapped summation
   for effect in me.haste_effects:it() do
+    print('effect.triggering_action: '..effect.triggering_action)
     -- Add potency to stats
     stats['haste'][effect.haste_category]['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + effect.potency
   end
   
   -- Add Geomancy potency to ma category
-  for buff in me.buffs:it() do
-    if buff == GEO_HASTE_BUFF_ID then
-      -- Find strongest Geomancy Haste buff currently active
-      -- Find strongest buff in indi table
-      local strongest_effect
-      local strongest_potency
-      for effect in indi_active:it() do
-        local multiplier = effect.multipliers and math.min(effect.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
-        local potency = math.floor(effect.potency * multiplier)
-        if strongest_effect == nil or strongest_potency < potency then
-          strongest_effect = effect
-          strongest_potency = potency
-        end
-      end
-      for effect in geo_active:it() do
-        local multiplier = effect.multipliers and math.min(effect.multipliers:reduce(add_multipliers, 1), GEOMANCY_JA_MULTIPLIER_MAX) or 1
-        local potency = math.floor(effect.potency * multiplier)
-        if strongest_effect == nil or strongest_potency < potency then
-          strongest_effect = effect
-          strongest_potency = potency
-        end
-      end
-      if strongest_effect then
-        -- Add potency to stats
-        stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + potency
-      else
-        -- Not tracking any indi- or geo- buffs, so just assume an effect
-        local effect = table.copy(haste_triggers['Other'][2])
-        stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + effect.potency
-      end
-      break -- Can only have one active geomancy haste buff; no need to check the rest of the buffs
-    end
+  local geomancy_effect = get_geomancy_effect(me)
+  if geomancy_effect then
+    stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + geomancy_effect.potency
   end
 
   -- Add songs potency to ma category
   for song in me.songs:it() do
     -- Calculate final potency after multipliers
-    local multiplier = song.multipliers and math.min(song.multipliers:reduce(add_multipliers, 1), SONG_JA_MULTIPLIER_MAX) or 1
+    local multiplier = total_multiplier(song.multipliers, SONG_JA_MULTIPLIER_MAX)
     local potency = math.floor(song.potency * multiplier)
     -- Add potency to stats
     stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + potency
@@ -2047,18 +2078,24 @@ windower.register_event('addon command', function(cmd, ...)
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI position reset to default.')
     elseif S{'detail', 'details'}:contains(cmd) then
       if not args[1] then
-        -- If all details enabled, collapse
-        if settings.summary_mode == 2 and settings.show_party and settings.show_breakdown then
-          settings.summary_mode = 1
-          settings.show_party = false
-          settings.show_breakdown = false
-          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'minimal'..chat_d_blue..' mode.')
+        -- If UI is currently hidden, simply make visible and do nothing else
+        if not settings.show_ui then
+          settings.show_ui = true
+          show_ui()
         else
-          -- Else, enable all
-          settings.summary_mode = 2
-          settings.show_party = true
-          settings.show_breakdown = true
-          windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'verbose'..chat_d_blue..' mode.')
+          -- If all details enabled, collapse
+          if settings.summary_mode == 2 and settings.show_party and settings.show_breakdown then
+            settings.summary_mode = 1
+            settings.show_party = false
+            settings.show_breakdown = false
+            windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'minimal'..chat_d_blue..' mode.')
+          else
+            -- Else, enable all
+            settings.summary_mode = 2
+            settings.show_party = true
+            settings.show_breakdown = true
+            windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI details set to '..chat_white..'verbose'..chat_d_blue..' mode.')
+          end
         end
       elseif S{'fractions', 'fraction', 'frac', 'percentage', 'percentages', 'percent', 'perc'}:contains(args[1]) then
         settings.show_fractions = not settings.show_fractions
