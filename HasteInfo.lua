@@ -1954,7 +1954,7 @@ windower.register_event('status change', function(new_status_id, old_status_id)
   -- Hide UI while dead
   if new_status_id == 2 or new_status_id == 3 or new_status_id == 4 then
     hide_ui()
-  elseif old_status_id == 2 or old_status_id == 3 or new_status_id == 4 then
+  elseif old_status_id == 2 or old_status_id == 3 or old_status_id == 4 then
     show_ui()
   end
 end)
