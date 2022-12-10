@@ -1548,7 +1548,6 @@ function calculate_stats()
 
   -- Sum potency of all effects by category (ma, ja, debuff) in uncapped summation
   for effect in me.haste_effects:it() do
-    print('effect.triggering_action: '..effect.triggering_action)
     -- Add potency to stats
     stats['haste'][effect.haste_category]['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + effect.potency
   end
