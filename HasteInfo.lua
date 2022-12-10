@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.0.28'
+_addon.version = '0.0.29'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1092,7 +1092,7 @@ function reconcile_buff_update(member, new_buffs)
       update_geomancy_effect_multiplier(member.id, STR.BOLSTER, true)
     elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve EA effect on current Geo spell potency
       update_geomancy_effect_multiplier(member.id, STR.EA, true)
-    elseif HASTE_BUFF_IDS:contains(buff.id) then
+    elseif HASTE_BUFF_IDS:contains(buff.id) or SLOW_DEBUFF_IDS:contains(buff.id) then
       deduce_haste_effects(member, new_buffs)
     end
   end
