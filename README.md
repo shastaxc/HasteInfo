@@ -40,7 +40,21 @@ Plugin Manager details can be found at https://docs.windower.net/addons/pluginma
 
 ## How to Use
 
-HasteInfo just reports what dual wield you need to hit haste cap. You decide what to do with it. The most common use is likely going to be that you want your GearSwap to be told what DW value it needs, then respond by equipping some set of gear. Here's an example:
+HasteInfo just reports what dual wield you need to hit haste cap. You decide what to do with it. The most common use is likely going to be that you want your GearSwap to be told what DW value it needs, then respond by equipping some set of gear. There are two main ways to accomplish this: 1) Enable the HasteInfo feature in SilverLibs, 2) Add all the necessary hooks into your GearSwap files yourself.
+
+### Enable HasteInfo via SilverLibs
+
+SilverLibs is a GearSwap library that makes adding new features quick and easy. This is a perfect example of that. Implementing HasteInfo using SilverLibs only requires 2 steps. However, the initial setup for SilverLibs can end up taking longer than implementing HasteInfo the manual way (for a single job). If you plan to add HasteInfo integration for multiple jobs, using SilverLibs is highly recommended.
+
+Here is the documentation for SilverLibs installation: https://github.com/shastaxc/silver-libs/wiki/Installation
+
+Here are the instructions for enabling HasteInfo using SilverLibs: https://github.com/shastaxc/silver-libs/wiki/Integrate-HasteInfo
+
+Here is an example implementation: https://github.com/shastaxc/gearswap-data/blob/main/Silvermutt-THF.lua
+
+### Add HasteInfo Hooks in GearSwap Manually
+
+Implementing HasteInfo into GearSwap this way requires more steps. If you have to do this for multiple jobs, SilverLibs is recommended. Here's an example of doing it the manual way without SilverLibs:
 
 Initialize your `dw_needed` variable in the function that triggers when you change main/sub jobs. This function is `user_setup()` in Mote's library and `job_setup()` in Selindrile's library. Mote's example:
 ```lua
@@ -65,9 +79,46 @@ function process_hasteinfo(cmdParams, eventArgs)
 end
 ```
 
-This will track your 'DW Needed' amount (according to HasteInfo) in a variable named `dw_needed`. And you can do whatever you want with it. You can reference this job lua for ideas https://github.com/shastaxc/gearswap-data/blob/main/Silvermutt-COR.lua
+This will track your 'DW Needed' amount (according to HasteInfo) in a variable named `dw_needed`. And you can do whatever you want with it. You can reference this file for ideas/reference for a manual implementation of HasteInfo: https://github.com/shastaxc/gearswap-data/blob/main/Silvermutt-COR.lua
 
-Note: HasteInfo will give you a value of -1 if you are currently unable to dual wield at all.
+To get your engaged sets to swap based on the reports from HasteInfo you must also implement the following:
+
+Add an initial call for HasteInfo to produce a report when you load a job file:
+```lua
+function get_sets()
+  coroutine.schedule(function()
+    send_command('hi report')
+  end, 3)
+end
+```
+
+Define the function that will set your CombatForm state:
+```lua
+function update_combat_form()
+  if dw_needed <= 0 then
+    state.CombatForm:reset()
+  else
+    if dw_needed > 0 and dw_needed <= 11 then
+      state.CombatForm:set('LowDW')
+    elseif dw_needed > 11 and dw_needed <= 18 then
+      state.CombatForm:set('MidDW')
+    elseif dw_needed > 18 and dw_needed <= 31 then
+      state.CombatForm:set('HighDW')
+    elseif dw_needed > 31 and dw_needed <= 42 then
+      state.CombatForm:set('SuperDW')
+    elseif dw_needed > 42 then
+      state.CombatForm:set('MaxDW')
+    end
+  end
+end
+```
+
+Hook into the gear-equipping function to have it update your combat form when gear updates are triggered:
+```lua
+function job_handle_equipping_gear(playerStatus, eventArgs)
+  update_combat_form()
+end
+```
 
 ## How It Works
 
@@ -76,6 +127,8 @@ HasteInfo starts by tracking haste-related actions performed on you (by reading 
 To help reconcile some discrepancies due to packet loss, HasteInfo uses the buff packet, which lists your buffs and their durations, as the source of truth for which buffs you actually have on. Unfortunately, it doesn't include info such as who casted that buff or which spell it came from (all BRD Marches just show as "March" and doesn't tell you which spell effect it is). Because of this, it is not the first choice in determining potencies but it can be used to help in maintaining a relatively accurate measure of your haste buffs.
 
 Additionally, Geomancy buffs (Indi-Haste and Geo-Haste) do not require any action to be taken on yourself in order for you to gain the buff effect. For this reason, HasteInfo also monitors actions performed on your party members and buffs on your party members. If those action packets are lost, we have to reconcile that using assumptions as well when the buff update packets come in.
+
+Note: HasteInfo will give you a value of -1 if you are currently unable to dual wield at all.
 
 ### Sources of Haste
 
