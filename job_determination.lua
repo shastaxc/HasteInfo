@@ -255,29 +255,36 @@ function deduce_job_from_examination(packet)
 
   -- Only need to deduce job for players who are in party and anon
   if member and member.is_anon then
-    -- Iterate through all possible items in packet
+    local jobs
+
+    -- Iterate through all possible items in packet and find the intersection of all items
     for i=1,8 do
       local item_id = packet['Item '..i]
       if not item_id then break end
-  
-      local item_detail = res.items[item_id] -- Pull item details so we can see jobs on the item
-      -- Count jobs and grab job if it's the only one
-      local count = 0
-      local only_job
-      for job in item_detail.jobs:it() do
-        only_job = job
-        count = count + 1
+      
+      local item_jobs = res.items[item_id].jobs
+      if item_jobs then
+          if jobs then
+              jobs = jobs:intersection(item_jobs)
+          else
+              jobs = item_jobs
+          end
+          if jobs and jobs:length() <= 1 then
+              break
+          end
       end
-      if count == 1 then -- Only 1 job on this item, update job and stop processing packet
-        local job = res.jobs[only_job].ens
-        if member.main ~= job then -- Update player's job
-          member.main = job
-          member.main_lv = 99
-          member.sub = ''
-          member.sub_lv = 0
-          update_ui_text()
-        end
-        break
+    end
+
+    -- If the intersection of all items leaves us with only 1 job, we know what job the player is
+    if jobs:length() == 1 then
+      local job_id = next(jobs)
+      local job = res.jobs[job_id].ens
+      if member.main ~= job then -- Update player's job
+        member.main = job
+        member.main_lv = 99
+        member.sub = ''
+        member.sub_lv = 0
+        update_ui_text()
       end
     end
   end
