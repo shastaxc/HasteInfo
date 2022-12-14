@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.1.0'
+_addon.version = '0.1.1'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -944,7 +944,7 @@ function update_songs(member, buffs)
                 break
               else
                 -- Do I need to handle this case? Can trigger if you get a song and then lose it right after (gets overwritten)
-                print('Unhandled case in lost song determination.')
+                -- print('Unhandled case in lost song determination.')
               end
             end
           end
