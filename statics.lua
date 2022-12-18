@@ -1,6 +1,6 @@
 log_name = 'hasteinfo_err.log'
 
-player = windower.ffxi.get_player()
+player = {} -- Stores player info
 
 alliance = T{} -- Only used to help read packets, resets often
 current_alliance_ids = L{} -- Only used to help read packets, resets often

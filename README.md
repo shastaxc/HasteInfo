@@ -180,7 +180,6 @@ Sources of Haste accounted for:
 ## TODO / Known Issues
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
-* Update player table when changing merits and job point allocations. Update DW if necessary.
 * Verify that debuff effects are properly detected and calculated:
   - Battlefield Elegy (-256/1024)
   - Carnage Elegy (-512/1024)

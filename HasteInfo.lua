@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.1.2'
+_addon.version = '1.0.0'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -62,7 +62,7 @@ end
 -------------------------------------------------------------------------------
 
 function init()
-  player = windower.ffxi.get_player()
+  update_player_info()
 
   load_settings()
 
@@ -1291,6 +1291,21 @@ function get_geomancy_effect(member)
   end
 end
 
+-- Update player info
+function update_player_info()
+  local player_info = windower.ffxi.get_player()
+  if player_info then
+    player.id = player_info.id
+    player.name = player_info.name
+    player.main_job = player_info.main_job
+    player.main_job_level = player_info.main_job_level
+    player.sub_job = player_info.sub_job
+    player.sub_job_level = player_info.sub_job_level
+    player.merits = player_info.merits
+    player.job_points = player_info.job_points
+  end
+end
+
 
 -------------------------------------------------------------------------------
 -- Event hooks
@@ -1649,6 +1664,10 @@ windower.register_event('zone change', function(new_zone, old_zone)
   show_ui()
   local me = get_member(player.id, player.name, true)
   me.zone = new_zone
+  
+  -- Update player info
+  update_player_info()
+  report()
 end)
 
 windower.register_event('load', function()
