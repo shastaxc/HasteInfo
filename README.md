@@ -178,6 +178,7 @@ Sources of Haste accounted for:
 * When a spell is gained or lost, it triggers packet 0x063. This packet contains info on all your current buffs and their durations. This is used as the source of truth to reconcile info lost in dropped action packets. Assumptions are made as necessary when there is missing data such as potency.
 
 ## TODO / Known Issues
+* Add a whitelist/blacklist feature for setting Geomancy+ and Song+ gear bonuses by player name.
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
 * Verify that debuff effects are properly detected and calculated:
