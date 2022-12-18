@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '0.1.1'
+_addon.version = '0.1.2'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -430,7 +430,7 @@ function parse_action(act, type)
       if is_indi then
         remove_indi_effect(target_member.id)
       else -- Assume Geo- spell
-        remove_geo_effect(target_member.id)
+        remove_geo_effect(caster.id)
       end
     end
   elseif type == ACTION_TYPE.SPELL then
@@ -560,7 +560,7 @@ function add_geo_effect(effect)
 end
 
 function remove_geo_effect(caster_id)
-  if not target_id and type(target_id) ~= 'number' then return end
+  if not caster_id and type(caster_id) ~= 'number' then return end
   
   geo_active[caster_id] = nil
   report()
@@ -1092,8 +1092,6 @@ function reconcile_buff_update(member, new_buffs)
     buff.paired = nil
     if buff.id == BOLSTER_BUFF_ID then -- Resolve Bolster effect on current Indi spell potency
       update_geomancy_effect_multiplier(member.id, STR.BOLSTER, true)
-    elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve EA effect on current Geo spell potency
-      update_geomancy_effect_multiplier(member.id, STR.EA, true)
     elseif HASTE_BUFF_IDS:contains(buff.id) or SLOW_DEBUFF_IDS:contains(buff.id) then
       deduce_haste_effects(member, new_buffs)
     end
@@ -1106,8 +1104,6 @@ function reconcile_buff_update(member, new_buffs)
     if buff.id == SONG_HASTE_BUFF_ID then
     elseif buff.id == BOLSTER_BUFF_ID then -- Resolve the effect of losing Bolster
       update_geomancy_effect_multiplier(member.id, STR.BOLSTER, false)
-    elseif buff.id == ECLIPTIC_ATTRITION_BUFF_ID then -- Resolve the effect of losing EA
-      update_geomancy_effect_multiplier(member.id, STR.EA, false)
     elseif buff.id == COLURE_ACTIVE_ID then
       -- If lost buff is Colure Active, and this player was tracked as an indi target, remove from indi table
       remove_indi_effect(member.id)
@@ -1537,6 +1533,15 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
         read_dw_traits:schedule(0)
       end
     end
+  elseif id == 0x00D then -- Updates about nearby PCs
+    -- Will show player's pet IDs, so we can double check if tracked GEO bubbles still exist or not
+    local packet = packets.parse('incoming', data)
+    local player_id = packet['Player']
+    -- Check if we are tracking a GEO bubble for this player
+    -- Packet says player has no geo bubble, let's stop tracking it
+    if packet['Pet Index'] == 0 and player_id and geo_active[player_id] then
+      remove_geo_effect(player_id)
+    end
   end
 end)
 
@@ -1545,11 +1550,17 @@ windower.register_event('action', function(act)
 
   if act.category == 1 and player.id == act.actor_id then -- Melee attack
     parse_action(act, ACTION_TYPE.SELF_MELEE)
-  elseif act.category == 6 then -- JA; Only care about JA on self, except Entrust
-    if act.actor_id == player.id then
+  elseif act.category == 6 then -- JA
+    if act.actor_id == player.id then -- Self casted JA by self
       if haste_triggers['Job Ability'][act.param] then
         parse_action(act, ACTION_TYPE.SELF_HASTE_JA)
       end
+    elseif act.param == FULL_CIRCLE_ACTION_ID then
+      remove_geo_effect(act.actor_id)
+    elseif act.param == ECLIPTIC_ATTRITION_ACTION_ID then
+      update_geomancy_effect_multiplier(act.actor_id, STR.EA, true)
+    elseif act.param == LASTING_EMANATION_ACTION_ID then
+      update_geomancy_effect_multiplier(act.actor_id, STR.EA, false)
     end
   elseif act.category == 4 then -- Spell finish casting
     if players[act.targets[1].id] then -- Target is party member
@@ -1626,9 +1637,8 @@ windower.register_event('outgoing chunk', function(id, data, modified, injected,
       -- Update tracked dw traits
       read_dw_traits()
     end
-  elseif id == 0x00D then -- Start leaving zone
-    hide_ui()
   elseif id == 0x00D then -- Last packet sent when leaving zone
+    hide_ui()
     local member = get_member(player.id, player.name)
     remove_zoned_effects(member)
   end
