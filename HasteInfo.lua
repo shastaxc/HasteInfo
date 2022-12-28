@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.0.0'
+_addon.version = '1.0.1'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1448,7 +1448,16 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     -- Sends buff ID and expiration for all of main player's current buffs
     -- Update buff durations. credit: Akaden, Buffed addon
     local order = data:unpack('H',0x05)
-    if order == 9 then
+    if order == 5 then
+      -- Includes info about amount of JP spent. We want this info for calculating DW.
+      -- This fixes the issue of missing this info when first loading into the game.
+      if not player or (player and player.job_points[player.main_job:lower()].jp_spent == 0) then
+        (function()
+          update_player_info()
+          read_dw_traits() -- Also reports
+        end):schedule(0)
+      end
+    elseif order == 9 then
       local buffs = T{}
 
       -- If you have no buffs, the buffs table will be empty (printed like {})
@@ -1666,8 +1675,8 @@ windower.register_event('zone change', function(new_zone, old_zone)
   me.zone = new_zone
   
   -- Update player info
-  update_player_info()
-  report()
+  update_player_info ()
+  read_dw_traits() -- Also reports
 end)
 
 windower.register_event('load', function()
@@ -1801,8 +1810,6 @@ windower.register_event('addon command', function(cmd, ...)
       update_ui_text()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
     elseif 'test' == cmd then
-      table.vprint(indi_active)
-      table.vprint(geo_active)
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
