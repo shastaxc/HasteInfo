@@ -154,9 +154,6 @@ defaults = {
       green=0,
       blue=0,
     },
-    flag={
-      draggable=true
-    },
   },
   default_geomancy=10,
   default_march=8,
