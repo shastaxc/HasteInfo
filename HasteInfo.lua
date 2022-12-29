@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.0.1'
+_addon.version = '1.1.0'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -112,7 +112,7 @@ end
 -- Party/Haste Functions
 -------------------------------------------------------------------------------
 
-function add_member(id, name)
+function add_member(id, name, is_trust)
   if not id then
     -- IDs must still remain unique. Iterate backwards from 0 until an unused index is found
     for i=-1,-5,-1 do
@@ -136,21 +136,46 @@ function add_member(id, name)
     main_lv=0,
     sub='',
     sub_lv=0,
+    is_trust = is_trust,
+    player_potencies=nil, -- When set, is a table of {geomancy=number, march=number}
     samba={},
     songs=T{},
     haste_effects=T{},
     buffs=L{}
   }
+
+  -- Update potencies from whitelisted settings
+  if settings.player_potencies.whitelist_enabled then
+    if settings.player_potencies.whitelist[id] then -- Find by ID
+      new_member.player_potencies = settings.player_potencies.whitelist[id]
+    elseif name and not is_trust and settings.player_potencies.whitelist[name:lower()] then -- Find by name
+      new_member.player_potencies = settings.player_potencies.whitelist[name:lower()]
+      -- Update settings table to store as ID if it's not a placeholder ID and not a trust
+      if not is_trust and id >= 0 then
+        new_member.player_potencies.id = id
+        settings.player_potencies.whitelist[id] = new_member.player_potencies
+        settings.player_potencies.whitelist[name:lower()] = nil
+      end
+    end
+  end
+
+  if not new_member.player_potencies then -- Assume defaults.
+    new_member.player_potencies = {
+      name = name,
+      geomancy = settings.player_potencies.default_geomancy,
+      march = settings.player_potencies.default_march
+    }
+    if not is_trust and id >= 0 then
+      new_member.player_potencies.id = id
+    end
+  end
+
   players[id] = new_member
   
   if settings.show_party then
     update_ui_text() -- Update UI
   end
   return players[id]
-end
-
-function get_placeholder_id(name)
-
 end
 
 function get_member(id, name, dontCreate)
@@ -173,7 +198,9 @@ function get_member(id, name, dontCreate)
     -- Name match not found. Add member. Return.
   if id and name then
     local foundById = players[id]
-    local foundByName = players:with('name', name)
+    local foundByName = players:with('name', function(n)
+      return n:lower() == name:lower()
+    end)
     if foundById and foundByName then
       return foundById
     elseif (foundById and not foundByName)
@@ -201,21 +228,23 @@ function get_member(id, name, dontCreate)
       players[found_entry.id] = found_entry
       return players[found_entry.id]
     elseif not foundById and not foundByName and not dontCreate then
-      return add_member(id, name)
+      return add_member(id, name, false)
     end
   elseif id and not name then
     local foundById = players[id]
     if foundById then
       return foundById
     elseif not dontCreate then
-      return add_member(id, name)
+      return add_member(id, name, false)
     end
   elseif not id and name then
-    local foundByName = players:with('name', name)
+    local foundByName = players:with('name', function(n)
+      return n:lower() == name:lower()
+    end)
     if foundByName then
       return foundByName
     elseif not dontCreate then
-      return add_member(id, name)
+      return add_member(id, name, false)
     end
   else
     return
@@ -352,7 +381,7 @@ function parse_action(act, type)
           if caster.is_trust or caster.sub == 'BRD' then
             song_bonus = 0
           else
-            song_bonus = haste_effect.song_cap
+            song_bonus = math.min(caster.player_potencies.march, haste_effect.song_cap)
           end
     
           -- Determine potency (each song bonus point adds 10% of base potency)
@@ -400,7 +429,7 @@ function parse_action(act, type)
       elseif target_member and caster.id ~= target_member.id then
         geomancy = 0
       else -- not a trust, not entrusted
-        geomancy = 10 -- assume idris; TODO: Enhance this with a whitelist/blacklist
+        geomancy = caster.player_potencies.geomancy
       end
   
       -- Apply geomancy bonus
@@ -748,17 +777,27 @@ function deduce_haste_effects(member, new_buffs)
             -- Assume that if anyone is Entrusted but not on indi-active table, that is the Indi-Haste (prefer self)
             if not effect and geo_in_pt and entrusted_member then
               effect = table.copy(haste_triggers['Magic'][771])
-              effect.potency = effect.potency_base * (effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+              effect.potency = effect.potency_base
               effect.caster_id = geo_in_pt.id
               effect.target_id = entrusted_member.id
               add_indi_effect(effect)
             end
 
+            -- If there's a GEO, but no Entrusted member, and geo has Colure Active, assume it's their Indi-Haste
+            if not effect and not entrusted_member and
+                (geo_in_pt and geo_in_pt.buffs and geo_in_pt.buffs:contains(COLURE_ACTIVE_ID)) then
+              effect = table.copy(haste_triggers['Magic'][771])
+              effect.potency = effect.potency_base * (effect.potency_per_geomancy * geo_in_pt.player_potencies.geomancy)
+              effect.caster_id = geo_in_pt.id
+              effect.target_id = geo_in_pt.id
+              add_indi_effect(effect)
+            end
+
             -- If no one has Colure Active, assume it's a Geo-Haste
             if not effect and not entrusted_member and
-                (geo_in_pt and geo_in_pt.buffs and not geo_in_pt.buffs:contains(COLURE_ACTIVE_ID) and not geo_active[geo_in_pt.id]) then
+                (geo_in_pt and geo_in_pt.buffs and not geo_in_pt.buffs:contains(COLURE_ACTIVE_ID)) then
                   effect = table.copy(haste_triggers['Magic'][801])
-                  effect.potency = effect.potency_base * (effect.potency_per_geomancy * 10) -- TODO: Use whitelist/blacklist
+                  effect.potency = effect.potency_base * (effect.potency_per_geomancy * geo_in_pt.player_potencies.geomancy)
                   effect.caster_id = geo_in_pt.id
               add_geo_effect(effect)
             end
@@ -943,7 +982,7 @@ function update_songs(member, buffs)
                 keep_songs:append(old_song)
                 break
               else
-                -- Do I need to handle this case? Can trigger if you get a song and then lose it right after (gets overwritten)
+                -- Do I need to handle this case?
                 -- print('Unhandled case in lost song determination.')
               end
             end
@@ -1017,6 +1056,8 @@ function update_songs(member, buffs)
     local song_priority = song_assumption_priority:copy()
 
     -- Gained songs should already be sorted by shortest duration first
+    -- These gained songs are ones that did not have a corresponding action packet detected
+    -- so some assumptions have to be made about its potency. Check settings to determine what to do.
     for song in gained_songs:it() do
       for assumed_song in song_priority:it() do
         -- If assumed song not already tracked, add it and include instance specific attributes
@@ -1025,7 +1066,9 @@ function update_songs(member, buffs)
           haste_effect.received_at = now()
           haste_effect.expiration = song.expiration
           -- Set potency (assume max)
-          haste_effect.potency = math.floor(haste_effect.potency_base * (1 + (0.1 * haste_effect.song_cap)))
+          -- Caster unknown
+          local song_bonus = math.min(settings.player_potencies.default_march, haste_effect.song_cap)
+          haste_effect.potency = math.floor(haste_effect.potency_base * (1 + (0.1 * song_bonus)))
           member.songs[haste_effect.triggering_id] = haste_effect
           break
         end
@@ -1183,10 +1226,7 @@ function get_npc_member(id, name, dontCreate)
 
   local member = players[id]
   if not member and not dontCreate then
-    member = add_member(id, name)
-    if member then
-      member.is_trust = true
-    end
+    member = add_member(id, name, true)
   end
 
   -- Update zone
@@ -1303,6 +1343,27 @@ function update_player_info()
     player.sub_job_level = player_info.sub_job_level
     player.merits = player_info.merits
     player.job_points = player_info.job_points
+  end
+end
+
+function update_whitelist_index(id, name)
+  name = name:lower()
+  local found_potencies_by_id = settings.player_potencies.whitelist[id]
+  if found_potencies_by_id then return end
+
+  local found_potencies_by_name = settings.player_potencies.whitelist[name]
+  -- Update player potencies by name to index by ID
+  if found_potencies_by_name then
+    local temp_potencies = found_potencies_by_name
+
+    -- Update settings table to store as ID
+    settings.player_potencies.whitelist[id] = temp_potencies
+    settings.player_potencies.whitelist[name] = nil
+    
+    local member = get_member(id, name, true)
+    if member and not member.is_trust then
+      players[member.id].player_potencies = temp_potencies
+    end
   end
 end
 
@@ -1426,7 +1487,11 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
           end
         end
         
+        -- If `member` exists here then they are in party
         if member then
+          -- Update whitelist index
+          update_whitelist_index(id, name)
+
           -- Update job info
           update_job(member, person.main, person.sub, person.main_lv, person.sub_lv)
 
@@ -1809,6 +1874,85 @@ windower.register_event('addon command', function(cmd, ...)
       reports_paused = false
       update_ui_text()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
+    elseif S{'whitelist','wl'}:contains(cmd) then
+      if not args[1] then
+        -- Toggle whitelist enable/disable
+        settings.player_potencies.whitelist_enabled = not settings.player_potencies.whitelist_enabled
+        settings:save()
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: Whitelist is '
+            ..(settings.player_potencies.whitelist_enabled and 'enabled' or 'disabled')
+            ..'.')
+      elseif args[1] and args[2] and S{'remove', 'rm', 'r', 'delete', 'd'}:contains(args[2]) then
+        -- Remove player from whitelist
+        -- Remove by name
+        settings.player_potencies.whitelist[args[1]] = nil
+        -- Remove by ID
+        local found_entry = table.with(settings.player_potencies.whitelist, 'name', args[1])
+        if found_entry then
+          table.vprint(found_entry)
+          settings.player_potencies.whitelist[found_entry.id] = nil
+          table.vprint(settings.player_potencies.whitelist[found_entry.id])
+        end
+				settings:save()
+        table.vprint(settings.player_potencies.whitelist[found_entry.id])
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: Removed '..args[1]..' from whitelist.')
+      elseif args[1] and args[2] and args[3] then
+        -- Args: 1) name, 2) geo/march, 3) value
+        local name = args[1]
+        local category = args[2]
+        local value = tonumber(args[3])
+        if S{'geo', 'geomancy', 'g', 'indi'}:contains(category) then
+          category = 'geomancy'
+        elseif S{'march', 'song', 'm', 's', 'brd'}:contains(category) then
+          category = 'march'
+        end
+
+        -- Perform input validation
+        if category == 'geomancy' or category == 'march'
+            and type(value) == 'number' then
+          -- See if we have an ID already (i.e. player is in party currently)
+          local member = get_member(nil, name, true)
+
+          -- Find existing entry
+          local player_potencies = settings.player_potencies.whitelist[name]
+          if not player_potencies then
+            if member then
+              if member.id >= 0 and not member.is_trust and settings.player_potencies.whitelist[member.id] then
+                player_potencies = settings.player_potencies.whitelist[member.id]
+              end
+            else
+              -- Must iterate through all entries to see if it's been indexed by ID
+              for k,v in pairs(settings.player_potencies.whitelist) do
+                if v.name == name then
+                  player_potencies = v
+                  break
+                end
+              end
+            end
+          end
+
+          -- If found setting has ID, add to that index
+          if player_potencies and player_potencies.id then
+            settings.player_potencies.whitelist[player_potencies.id][category] = value
+          elseif player_potencies then
+            settings.player_potencies.whitelist[name][category] = value
+          else -- Entry does not yet exist, make one
+            player_potencies = {
+              name=name,
+              geomancy=(category == 'geomancy' and value) or settings.player_potencies.default_geomancy,
+              march=(category == 'march' and value) or settings.player_potencies.default_march,
+            }
+            settings.player_potencies.whitelist[name] = player_potencies
+          end
+          
+          -- If player with this name is being tracked in party currently, update that too
+          if member and player_potencies then
+            players[member.id].player_potencies = player_potencies
+          end
+          settings:save()
+          windower.add_to_chat(001, chat_d_blue..'HasteInfo: Set '..name..' '..category..' to '..value..'.')
+        end
+      end
     elseif 'test' == cmd then
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
@@ -1830,6 +1974,10 @@ windower.register_event('addon command', function(cmd, ...)
 			windower.add_to_chat(6, chat_l_blue..	'    reset ' .. chat_white .. ': Reset details to default settings')
       windower.add_to_chat(6, chat_l_blue..	'//hi pause ' .. chat_white .. ': Pause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'//hi play ' .. chat_white .. ': Unpause haste reports (but continues processing)')
+      windower.add_to_chat(6, chat_l_blue..	'//hi whitelist ' .. chat_white .. ': Toggle whitelist enable/disable')
+			windower.add_to_chat(6, chat_l_blue..	'    [name] rm ' .. chat_white .. ': Remove name from whitelist')
+			windower.add_to_chat(6, chat_l_blue..	'    [name] geo 10 ' .. chat_white .. ': Set geomancy potency for player to 10')
+			windower.add_to_chat(6, chat_l_blue..	'    [name] march 8 ' .. chat_white .. ': Set march potency for player to 8')
       windower.add_to_chat(6, chat_l_blue..	'//hi debug ' .. chat_white .. ': Toggle debug mode')
       windower.add_to_chat(6, chat_l_blue..	'//hi help ' .. chat_white .. ': Display this help menu again')
     else

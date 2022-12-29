@@ -148,9 +148,22 @@ defaults = {
     flag={
       draggable=true
     },
+  },
+  player_potencies={
+    default_geomancy=10,
+    default_march=8,
+    whitelist_enabled=true,
+    whitelist={ -- Indexed by name when first set, but updated to index by ID when detected later
+      -- [player_id] = {id=number, name=string, geomancy=number, march=number}
+      -- [123456] = {id=123456, name=Suckmyballs, geomancy=10, march=8}
+      
+      -- [player_name] = {name=string, geomancy=number, march=number}
+      -- [Suckmyballs] = {name=Suckmyballs, geomancy=10, march=8}
+    }
   }
 }
 
+-- Maximum character count that the game allows you to use for your name
 NAME_MAX_CHAR_COUNT = 16
 
 -- Fraction caps are all numerators. The denominator for each is 1024.
