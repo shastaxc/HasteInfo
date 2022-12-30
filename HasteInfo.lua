@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.1.1'
+_addon.version = '1.2.0'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1513,9 +1513,15 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
           local old_zone = member.zone
           if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
             member.zone = new_zone
-            
+            -- If player left zone that main player is in, or just entered the main player's zone
+            -- update UI because their color needs to change
+            if settings.show_party and me and member.id ~= me.id
+                and (old_zone ~= me.zone and new_zone == me.zone)
+                or (old_zone == me.zone and new_zone ~= me.zone) then
+              update_ui_text()
+            end
             -- If player just left zone that main player is in, reset buffs
-            if me and member.id ~= me.id and old_zone == me.zone then
+            if me and member.id ~= me.id and old_zone == me.zone and new_zone ~= me.zone then
               remove_zoned_effects(member)
             end
           end
@@ -1753,7 +1759,7 @@ windower.register_event('zone change', function(new_zone, old_zone)
   me.zone = new_zone
   
   -- Update player info
-  update_player_info ()
+  update_player_info()
   read_dw_traits() -- Also reports
 end)
 
@@ -1775,7 +1781,7 @@ windower.register_event('logout', function()
   save_whitelist()
 end)
 
-windower.register_event('login',function ()
+windower.register_event('login', function()
   windower.send_command('lua r hasteinfo')
 end)
 
