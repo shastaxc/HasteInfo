@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.2.0'
+_addon.version = '1.2.1'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1896,6 +1896,14 @@ windower.register_event('addon command', function(cmd, ...)
       update_ui_text()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: Resuming reports.')
     elseif 'defaultpotency' == cmd then
+      if not args[1] then
+        -- Toggle defaults between max and min potencies
+        settings.default_geomancy = settings.default_geomancy == 10 and 0 or 10
+        settings.default_march = settings.default_march == 8 and 0 or 8
+        settings:save()
+        windower.add_to_chat(001, chat_d_blue..'HasteInfo: Set default geomancy to '..settings.default_geomancy
+            ..' and march to '..settings.default_march..'.')
+      end
       if args[1] and args[2] then
         local category = args[1]
         local value = tonumber(args[2])
@@ -2010,8 +2018,9 @@ windower.register_event('addon command', function(cmd, ...)
 			windower.add_to_chat(6, chat_l_blue..	'    reset ' .. chat_white .. ': Reset details to default settings')
       windower.add_to_chat(6, chat_l_blue..	'//hi pause ' .. chat_white .. ': Pause haste reports (but continues processing)')
       windower.add_to_chat(6, chat_l_blue..	'//hi play ' .. chat_white .. ': Unpause haste reports (but continues processing)')
-      windower.add_to_chat(6, chat_l_blue..	'//hi defaultpotency geo [num] ' .. chat_white .. ': Set default potency for geomancy')
-      windower.add_to_chat(6, chat_l_blue..	'//hi defaultpotency march [num] ' .. chat_white .. ': Set default potency for Marches')
+      windower.add_to_chat(6, chat_l_blue..	'//hi defaultpotency ' .. chat_white .. ': Toggle defaults between min/max')
+			windower.add_to_chat(6, chat_l_blue..	'    geo [num] ' .. chat_white .. ': Set default potency for Geomancy')
+			windower.add_to_chat(6, chat_l_blue..	'    march [num] ' .. chat_white .. ': Set default potency for Marches')
       windower.add_to_chat(6, chat_l_blue..	'//hi whitelist ' .. chat_white .. ': Toggle whitelist enable/disable')
 			windower.add_to_chat(6, chat_l_blue..	'    rm [name] ' .. chat_white .. ': Remove name from whitelist')
 			windower.add_to_chat(6, chat_l_blue..	'    [name] geo [num] ' .. chat_white .. ': Set Geomancy potency for player')
