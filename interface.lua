@@ -92,11 +92,16 @@ function update_ui_text(force_update)
   end
   
   if settings.show_party then
+    local me = get_member(player.id, player.name, true)
     for p in players:it() do
       local main_str = (not p.main and '???') or (p.main=='' and '???') or p.main
       local sub_str = (not p.sub and '???') or (p.sub=='' and '???') or p.sub
       local name_str = (not p.name and p.id) or (p.name=='' and p.id) or p.name
       local str = main_str..'/'..sub_str..' '..name_str
+      -- If player is out of zone, use darker text color
+      if me and p.id ~= me.id and p.zone and me.zone and p.zone ~= me.zone then
+        str=inline_gray..str..default_color
+      end
       lines:append(str)
     end
   end

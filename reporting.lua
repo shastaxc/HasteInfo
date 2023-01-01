@@ -136,6 +136,7 @@ function get_dw_tier_for_job(member, is_main)
     end
     dw_tier = dw_tier or 0
   elseif is_main and job == 'BLU' then -- Subjob BLU cannot access any spells that would grant DW trait
+    local jp_spent = player.job_points[job:lower()].jp_spent or 0
     -- Determine dual wield based on equipped BLU spells
     local spell_ids = is_main and windower.ffxi.get_mjob_data().spells or windower.ffxi.get_sjob_data().spells or {}
     local trait_points = 0
@@ -147,6 +148,11 @@ function get_dw_tier_for_job(member, is_main)
       end
     end
     dw_tier = math.floor(trait_points / 8)
+    if jp_spent >= 1200 then
+      dw_tier = dw_tier + 2
+    elseif jp_spent >= 100 then
+      dw_tier = dw_tier + 1
+    end
   else
     dw_tier = 0
   end

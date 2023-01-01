@@ -154,9 +154,6 @@ defaults = {
       green=0,
       blue=0,
     },
-    flag={
-      draggable=true
-    },
   },
   default_geomancy=10,
   default_march=8,
@@ -501,3 +498,4 @@ inline_white = '\\cs(255,255,255)'
 inline_red = '\\cs(255,0,0)'
 inline_green = '\\cs(0,255,0)'
 inline_blue = '\\cs(0,0,255)'
+inline_gray = '\\cs(170,170,170)'
