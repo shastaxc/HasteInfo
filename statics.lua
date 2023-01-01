@@ -10,6 +10,15 @@ reports_paused = false
 -- Offset of system clock vs server clock, to be determined by packets received from the server
 clock_offset = 0
 
+-- Whitelist is indexed by name when first set, but updated to index by ID when detected later
+-- Whitelist data structure:
+-- [player_id] = {id=number, name=string, geomancy=number, march=number}
+-- [123456] = {id=123456, name=Suckmyballs, geomancy=10, march=8}
+
+-- [player_name] = {name=string, geomancy=number, march=number}
+-- [Suckmyballs] = {name=Suckmyballs, geomancy=10, march=8}
+whitelist = T{}
+
 -- Stats includes total haste, and haste by category. 'Actual' is the real amount of
 -- haste, and 'uncapped' is the full amount that all buffs would add up to if there was
 -- no cap.
@@ -148,9 +157,13 @@ defaults = {
     flag={
       draggable=true
     },
-  }
+  },
+  default_geomancy=10,
+  default_march=8,
+  whitelist_enabled=true,
 }
 
+-- Maximum character count that the game allows you to use for your name
 NAME_MAX_CHAR_COUNT = 16
 
 -- Fraction caps are all numerators. The denominator for each is 1024.
