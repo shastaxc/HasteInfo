@@ -98,9 +98,10 @@ function update_ui_text(force_update)
       local sub_str = (not p.sub and '???') or (p.sub=='' and '???') or p.sub
       local name_str = (not p.name and p.id) or (p.name=='' and p.id) or p.name
       local str = main_str..'/'..sub_str..' '..name_str
-      if not is_in_zone(p) then
-        str = inline_gray..str..default_color
-      end
+      -- TODO: Fix this
+      -- if not is_in_zone(p) then
+      --   str = inline_gray..str..default_color
+      -- end
       lines:append(str)
     end
   end
