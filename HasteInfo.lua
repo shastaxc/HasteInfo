@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.2.4'
+_addon.version = '1.2.5'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1756,6 +1756,13 @@ windower.register_event('zone change', function(new_zone, old_zone)
   show_ui()
   local me = get_member(player.id, player.name, true)
   me.zone = new_zone
+
+  -- Stop tracking all trusts
+  for p in players:it() do
+    if p.is_trust then
+      remove_member(p.id)
+    end
+  end
   
   -- Update player info
   update_player_info()

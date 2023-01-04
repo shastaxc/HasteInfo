@@ -181,7 +181,6 @@ Sources of Haste accounted for:
 ## TODO / Known Issues
 * Add haste levels to gs report
 * Add setting to allow user to override the assumed equipment haste value.
-* Fix trusts not removing from party list when leaving zone. Packet 0x0C8 is not triggered when solo when changing zones.
 * Debuffs that have no effect due to an opposing buff is still being tracked when it shouldn't (e.g. Slow received while Haste II is on)
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
