@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.2.3'
+_addon.version = '1.2.4'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -995,7 +995,9 @@ function update_songs(member, buffs)
 
     -- Double check that list is correct
     if keep_songs.n ~= new_count then
-      print('Logic that determines lost songs is incorrect.')
+      -- TODO: this triggers a lot in DI because you're not expected to be able to get
+      -- songs from outside of party, but you can in DI. Also, lots of dropped packets.
+      -- print('Logic that determines lost songs is incorrect.')
     end
 
     -- Update song list
@@ -1412,20 +1414,21 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
 
     local packet = packets.parse('incoming', data)
     
-    alliance = T{}
-    current_alliance_ids = L{}
+    alliance_update_0x0DD = T{}
+    alliance_update_0x0C8 = {}
     -- Update tracked alliance members
     for i=1,18 do
       local player_id = packet['ID '..i]
       if player_id > 0 then -- ID == 0 is empty party slot
-        current_alliance_ids:append(player_id)
+        local player_zone = packet['Zone '..i]
+        alliance_update_0x0C8[player_id]={id=player_id, zone=player_zone}
       end
     end
   
     -- Remove tracked members if their ID is not found
     for member in players:it() do
       -- If ID is not a placeholder, but not in the party ids list, remove them
-      if member.id >= 0 and not current_alliance_ids:contains(member.id) and member.id ~= player.id then
+      if member.id >= 0 and not alliance_update_0x0C8[member.id] and member.id ~= player.id then
         remove_member(member.id)
       end
     end
@@ -1462,18 +1465,18 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     -- If Party Number == 2 or 3, always remove them.
     -- If Party Number == 1 we will always add/update them because they are in our party in an alliance.
     -- If Party Number == 0 and we are in alliance, remove them.
-    -- If Party Number == 0 and not in alliance and not in current_alliance_ids remove them.
-    -- If Party Number == 0 and not in alliance and IS in current_alliance_ids, add/update them.
+    -- If Party Number == 0 and not in alliance and not in alliance_update_0x0C8 remove them.
+    -- If Party Number == 0 and not in alliance and IS in alliance_update_0x0C8, add/update them.
 
     local packet = packets.parse('incoming', data)
     local player_id = packet['ID']
 
-    if current_alliance_ids:contains(player_id) then
-      alliance[player_id] = {
+    if alliance_update_0x0C8[player_id] then
+      alliance_update_0x0DD[player_id] = {
         id=player_id,
         name=packet['Name'],
         party=packet['Party Number'],
-        zone=packet['Zone'],
+        zone=alliance_update_0x0C8[player_id].zone, -- Zone info from 0x0C8 packet is more accurate
         main=packet['Main Job'],
         sub=packet['Sub Job'],
         main_lv=packet['Main Job Level'],
@@ -1482,17 +1485,17 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     end
 
     -- If this is the last player update, process all
-    if alliance:length() == current_alliance_ids.n then
-      local me_update = alliance[player.id]
+    if alliance_update_0x0DD:length() > 0 and alliance_update_0x0DD:length() == table.length(alliance_update_0x0C8) then
+      local me_update = alliance_update_0x0DD[player.id]
       local me = get_member(player.id, player.name)
       local in_alliance = me_update.party ~= 0
       
-      for person in alliance:it() do
+      for person in alliance_update_0x0DD:it() do
         local member
         if person.party == me_update.party then -- Person is in my party add/update them
           member = get_member(person.id, person.name)
         elseif in_alliance and person.party == 0 then -- Person left alliance/party
-          alliance[person.id] = nil -- Stop tracking alliance member
+          alliance_update_0x0DD[person.id] = nil -- Stop tracking alliance member
           member = get_member(person.id, person.name, true)
           if member then
             remove_member(member.id) -- Stop tracking party member
@@ -1511,22 +1514,18 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
           -- Update zone info
           local new_zone = person.zone
           local old_zone = member.zone
-          if new_zone and new_zone ~= 0 and old_zone ~= new_zone then
-            member.zone = new_zone
-            -- If player left zone that main player is in, or just entered the main player's zone
-            -- update UI because their color needs to change
-            if settings.show_party and me and member.id ~= me.id
-                and ((old_zone ~= me.zone and new_zone == me.zone)
-                or (old_zone == me.zone and new_zone ~= me.zone)) then
-              update_ui_text()
-            end
+          if new_zone and new_zone ~= 0 then
             -- If player just left zone that main player is in, reset buffs
-            if me and member.id ~= me.id and old_zone == me.zone and new_zone ~= me.zone then
+            if me_update and me and member.id ~= me_update.id and old_zone == me.zone and new_zone ~= me_update.zone then
               remove_zoned_effects(member)
             end
+            players[member.id].zone = new_zone
           end
         end
       end
+      update_ui_text()
+      alliance_update_0x0DD = T{}
+      alliance_update_0x0C8 = {}
     end
   elseif id == 0x063 then -- Set Update packet
     -- Sends buff ID and expiration for all of main player's current buffs
@@ -1761,7 +1760,7 @@ windower.register_event('zone change', function(new_zone, old_zone)
   -- Update player info
   update_player_info()
   read_dw_traits() -- Also reports
-  update_ui_text() -- Might need to change party member colors
+  update_ui_text()
 end)
 
 windower.register_event('load', function()
@@ -1996,9 +1995,7 @@ windower.register_event('addon command', function(cmd, ...)
         end
       end
     elseif 'test' == cmd then
-      save_whitelist()
-    elseif 'test2' == cmd then
-      load_whitelist()
+      table.vprint(players)
     elseif 'debug' == cmd then
       DEBUG_MODE = not DEBUG_MODE
       log('Toggled Debug Mode to: '..tostring(DEBUG_MODE))
@@ -2014,7 +2011,7 @@ windower.register_event('addon command', function(cmd, ...)
       windower.add_to_chat(6, chat_l_blue..	'//hi detail ' .. chat_white .. ': Toggle UI between verbose/minimal mode')
 			windower.add_to_chat(6, chat_l_blue..	'    fraction ' .. chat_white .. ': Toggle haste values in fraction or percent')
 			windower.add_to_chat(6, chat_l_blue..	'    party ' .. chat_white .. ': Toggle display of party info')
-			-- windower.add_to_chat(6, chat_l_blue..	'    breakdown ' .. chat_white .. ': Toggle display of haste effect breakdown')
+			windower.add_to_chat(6, chat_l_blue..	'    breakdown ' .. chat_white .. ': Toggle display of haste effect breakdown')
 			windower.add_to_chat(6, chat_l_blue..	'    summary ' .. chat_white .. ': Cycles through summary display modes')
 			windower.add_to_chat(6, chat_l_blue..	'    reset ' .. chat_white .. ': Reset details to default settings')
       windower.add_to_chat(6, chat_l_blue..	'//hi pause ' .. chat_white .. ': Pause haste reports (but continues processing)')

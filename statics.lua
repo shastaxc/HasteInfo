@@ -2,8 +2,8 @@ log_name = 'hasteinfo_err.log'
 
 player = {} -- Stores player info
 
-alliance = T{} -- Only used to help read packets, resets often
-current_alliance_ids = L{} -- Only used to help read packets, resets often
+alliance_update_0x0DD = T{} -- Only used to help read packets, resets often
+alliance_update_0x0C8 = {} -- Only used to help read packets, resets often
 
 reports_paused = false
 

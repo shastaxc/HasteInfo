@@ -179,7 +179,10 @@ Sources of Haste accounted for:
 * When party members are out of zone, the game does not send us job updates for them. Their job will remain the same in the HasteInfo UI, but it may not be their actual job if they changed while out of zone. Players who are out of zone will show as slightly darker on the UI so just keep in mind that their job may not be accurate.
 
 ## TODO / Known Issues
-* Fix name darkening when out of zone. When entering instances, it doesn't update. Also screws up formatting of buff breakdown.
+* Add haste levels to gs report
+* Add setting to allow user to override the assumed equipment haste value.
+* Fix trusts not removing from party list when leaving zone. Packet 0x0C8 is not triggered when solo when changing zones.
+* Debuffs that have no effect due to an opposing buff is still being tracked when it shouldn't (e.g. Slow received while Haste II is on)
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
 * Verify that debuff effects are properly detected and calculated:
