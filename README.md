@@ -179,6 +179,7 @@ Sources of Haste accounted for:
 * When party members are out of zone, the game does not send us job updates for them. Their job will remain the same in the HasteInfo UI, but it may not be their actual job if they changed while out of zone. Players who are out of zone will show as slightly darker on the UI so just keep in mind that their job may not be accurate.
 
 ## TODO / Known Issues
+* Hasso counting toward haste when 2h not equipped.
 * Add haste levels to gs report
 * Add setting to allow user to override the assumed equipment haste value.
 * Debuffs that have no effect due to an opposing buff is still being tracked when it shouldn't (e.g. Slow received while Haste II is on)
@@ -187,5 +188,4 @@ Sources of Haste accounted for:
 * Verify that debuff effects are properly detected and calculated:
   - Battlefield Elegy (-256/1024)
   - Carnage Elegy (-512/1024)
-  - Slow/Slow II (-300/1024)
   - Indi/Geo-Slow (-204/1024)
