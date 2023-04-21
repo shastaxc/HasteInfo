@@ -128,12 +128,18 @@ summary_mode_options = T{
 }
 
 -- Default settings
-defaults = {
+default_settings = {
   show_ui=true,
   show_fractions = true,
   show_party = true,
   show_breakdown = true,
   summary_mode = 2,
+  default_geomancy=10,
+  default_march=8,
+  whitelist_enabled=true,
+}
+
+default_ui_settings = {
   display={
     text={
       size=10,
@@ -154,10 +160,7 @@ defaults = {
       green=0,
       blue=0,
     },
-  },
-  default_geomancy=10,
-  default_march=8,
-  whitelist_enabled=true,
+  }
 }
 
 -- Maximum character count that the game allows you to use for your name

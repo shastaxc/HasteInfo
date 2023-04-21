@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.3.0'
+_addon.version = '1.3.1'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -68,8 +68,12 @@ function init()
 
   update_player_info()
 
-  load_settings()
-  load_whitelist()
+  settings, ui_settings = load_settings(default_settings, default_ui_settings)
+  whitelist = load_whitelist()
+  ui = load_ui(ui_settings)
+
+  -- Set UI visibility based on saved setting
+  ui:visible(settings.show_ui)
 
   -- Add primary user
   local me = add_member(player.id, player.name)
@@ -100,17 +104,6 @@ function init()
   reset_self_buffs()
   
   read_dw_traits() -- Also reports
-end
-
-function load_settings()
-  settings = config.load('data\\settings.xml',defaults)
-  settings:save() -- In case file didn't exist, this creates one with defaults
-  ui = texts.new('${value}', settings.display)
-  
-  ui.value = 'HasteInfo Loading/Broken...'
-
-  -- Set UI visibility based on saved setting
-  ui:visible(settings.show_ui)
 end
 
 -------------------------------------------------------------------------------
@@ -1384,14 +1377,66 @@ function update_whitelist_index(id, name)
   end
 end
 
+function save_settings()
+  if not player or not player.name then print('ERROR: Player not loaded yet. Cannot save settings.') end
+
+	local f = io.open(windower.addon_path..'data/'..player.name..'-settings.lua','w+')
+  if f then
+    f:write('return ' .. settings:tovstring())
+    f:close()
+  end
+  
+  -- Also save UI
+  ui_settings:save()
+end
+
+function load_settings(defaults, ui_defaults)
+  if not player or not player.name then print('ERROR: Player not loaded yet. Cannot load settings.') end
+
+  local filepath = windower.addon_path..'data/'..player.name..'-settings.lua'
+	local f = io.open(filepath,'r')
+
+  -- Pull metadata from defaults table
+  local confdict_mt = getmetatable(defaults) or _meta.T
+  local s = setmetatable(table.copy(defaults or {}), {__class = 'Settings', __index = function(t, k)
+      return confdict_mt.__index[k]
+  end})
+
+  windower.add_to_chat(123, inspect(s, {depth=3}))
+
+  -- Start with 
+  local stored_settings = T(assert(loadfile(filepath))())
+  if stored_settings then
+    s = table.update(table.copy(s), stored_settings, true, 5)
+  end
+
+  local ui_s = config.load('data\\ui-settings.xml', ui_defaults)
+  ui_s:save() -- In case file didn't exist, this creates one with defaults
+
+  return s, ui_s
+end
+
 function save_whitelist()
-	local f = io.open(windower.addon_path..'data/whitelist.lua','w')
-	f:write('return ' .. whitelist:tovstring())
-  f:close()
+  if not player or not player.name then print('ERROR: Player not loaded yet. Cannot save whitelist.') end
+
+  local filepath = windower.addon_path..'data/'..player.name..'-whitelist.lua'
+	local f = io.open(filepath,'w+')
+  if f then
+    f:write('return ' .. whitelist:tovstring())
+    f:close()
+  end
 end
 
 function load_whitelist()
-	whitelist = T(assert(loadfile(windower.addon_path..'data/whitelist.lua'))())
+  if not player or not player.name then print('ERROR: Player not loaded yet. Cannot load whitelist.') end
+
+  local filepath = windower.addon_path..'data/'..player.name..'-whitelist.lua'
+	local f = io.open(filepath,'r')
+
+  local stored_whitelist = T(assert(loadfile(filepath))())
+  local w = stored_whitelist or T{}
+
+	return w
 end
 
 function log(message)
@@ -1802,13 +1847,13 @@ end)
 
 windower.register_event('unload', function()
   hide_ui()
-  settings:save()
+  save_settings()
   save_whitelist()
 end)
 
 windower.register_event('logout', function()
   hide_ui()
-  settings:save()
+  save_settings()
   save_whitelist()
 end)
 
@@ -1907,7 +1952,7 @@ windower.register_event('addon command', function(cmd, ...)
         settings.show_breakdown = defaults.show_breakdown
         windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI detail modes reset to default.')
       end
-      settings:save()
+      save_settings()
       update_ui_text()
     elseif 'report' == cmd then
       local skip_recalculate = true
@@ -1931,7 +1976,7 @@ windower.register_event('addon command', function(cmd, ...)
         -- Toggle defaults between max and min potencies
         settings.default_geomancy = settings.default_geomancy == 10 and 0 or 10
         settings.default_march = settings.default_march == 8 and 0 or 8
-        settings:save()
+        save_settings()
         windower.add_to_chat(001, chat_d_blue..'HasteInfo: Set default geomancy to '..settings.default_geomancy
             ..' and march to '..settings.default_march..'.')
       end
@@ -1944,14 +1989,14 @@ windower.register_event('addon command', function(cmd, ...)
           category = 'march'
         end
         settings['default_'..category] = value
-        settings:save()
+        save_settings()
         windower.add_to_chat(001, chat_d_blue..'HasteInfo: Set default '..category..' to '..value..'.')
       end
     elseif S{'whitelist','wl'}:contains(cmd) then
       if not args[1] then
         -- Toggle whitelist enable/disable
         settings.whitelist_enabled = not settings.whitelist_enabled
-        settings:save()
+        save_settings()
         windower.add_to_chat(001, chat_d_blue..'HasteInfo: Whitelist is '
             ..(settings.whitelist_enabled and 'enabled' or 'disabled')
             ..'.')

@@ -2,6 +2,14 @@
 -- UI Functions
 -------------------------------------------------------------------------------
 
+function load_ui(ui_s)
+  local temp_ui = texts.new('${value}', ui_s.display)
+  
+  temp_ui.value = 'HasteInfo Loading/Broken...'
+
+  return temp_ui
+end
+
 function toggle_ui()
   local is_vis = ui:visible()
   -- If we're changing it to be visible, we need to update the UI text first
