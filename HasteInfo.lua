@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.2.5'
+_addon.version = '1.3.0'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -17,6 +17,8 @@ res = require('resources')
 packets = require('packets')
 config = require('config')
 texts = require('texts')
+files = require('files')
+inspect = require('inspect')
 
 require('statics')
 require('job_determination')
@@ -62,6 +64,8 @@ end
 -------------------------------------------------------------------------------
 
 function init()
+  files.create_path('logs')
+
   update_player_info()
 
   load_settings()
@@ -474,8 +478,16 @@ function parse_action(act, type)
         for i,a in ipairs(target.actions) do
           local buff_id = a.param
           -- If buff doesn't match a buff that we're interested in, ignore.
-          -- Also, 'no effect' spells have buff_id == 0, so this check filters those too
-          if HASTE_BUFF_IDS:contains(buff_id) or SLOW_DEBUFF_IDS:contains(buff_id) then
+          -- 'no effect' buffs have buff_id == 0, so this check filters those too
+          -- 'no effect', 'resisted', or 'immune' debuffs are different and must be checked separately
+          if HASTE_BUFF_IDS:contains(buff_id) then
+            -- Determine potency
+            haste_effect.potency = haste_effect.potency_base
+            add_haste_effect(target_member, haste_effect)
+          elseif SLOW_DEBUFF_IDS:contains(buff_id)
+              and not IMMUNITY_MESSAGE_IDS:contains(a.message)
+              and not RESIST_MESSAGEE_IDS:contains(a.message)
+              and not NO_EFFECT_MESSAGE_IDS:contains(a.message) then
             -- Determine potency
             haste_effect.potency = haste_effect.potency_base
             add_haste_effect(target_member, haste_effect)
@@ -1382,6 +1394,18 @@ function load_whitelist()
 	whitelist = T(assert(loadfile(windower.addon_path..'data/whitelist.lua'))())
 end
 
+function log(message)
+  local timestamp = os.date("%Y%m%d")
+  local filename = 'logs/'
+  if player and player.name then
+    filename = filename..player.name
+  else
+    filename = filename..'default'
+  end
+  filename = filename..'-'..timestamp..'.log'
+
+  flog(filename, message)
+end
 
 -------------------------------------------------------------------------------
 -- Event hooks
@@ -1708,7 +1732,7 @@ windower.register_event('action message', function(actor_id, target_id, actor_in
     local str = 'message_id='..message_id..d..'actor_id='..actor_id..d..'target_id='..target_id..d..
                 'actor_index='..actor_index..d..'target_index='..target_index..d..'param_1='..param_1..d..
                 'param_2='..param_2..d..'param_3='..param_3..d..'action_msg='..action_msg
-    flog(log_name, str)
+    log(str)
   end
 end)
 

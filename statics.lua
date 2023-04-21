@@ -282,6 +282,10 @@ ENTRUST_ACTION_ID = 386
 FULL_CIRCLE_ACTION_ID = 345
 LASTING_EMANATION_ACTION_ID = 346
 
+IMMUNITY_MESSAGE_IDS = S{655, 656}
+RESIST_MESSAGEE_IDS = S{85,284,653,654}
+NO_EFFECT_MESSAGE_IDS = S{75,283,423,659}
+
 GEOMANCY_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all geomancy buffs (max boost if Bolster + BoG + EA are all active)
 SONG_JA_MULTIPLIER_MAX = 2 -- Max potency multiplier of all song buffs (max boost if SV + Marcato are all active)
 
