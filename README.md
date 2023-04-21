@@ -182,10 +182,5 @@ Sources of Haste accounted for:
 * Hasso counting toward haste when 2h not equipped.
 * Add haste levels to gs report
 * Add setting to allow user to override the assumed equipment haste value.
-* Debuffs that have no effect due to an opposing buff is still being tracked when it shouldn't (e.g. Slow received while Haste II is on)
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
-* Verify that debuff effects are properly detected and calculated:
-  - Battlefield Elegy (-256/1024)
-  - Carnage Elegy (-512/1024)
-  - Indi/Geo-Slow (-204/1024)
