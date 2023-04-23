@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.3.1'
+_addon.version = '1.3.2'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1401,8 +1401,6 @@ function load_settings(defaults, ui_defaults)
   local s = setmetatable(table.copy(defaults or {}), {__class = 'Settings', __index = function(t, k)
       return confdict_mt.__index[k]
   end})
-
-  windower.add_to_chat(123, inspect(s, {depth=3}))
 
   -- Start with 
   local stored_settings = T(assert(loadfile(filepath))())
