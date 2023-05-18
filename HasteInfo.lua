@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.3.2'
+_addon.version = '1.3.3'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -356,12 +356,21 @@ function parse_action(act, type)
       -- Check if this is a debuff spell and handle accordingly
       if haste_effect.haste_category == 'debuff' then
         for i,target in ipairs(act.targets) do
-          if target.id == me.id then
+          if target.id == me.id and target.actions then
             local target_member = get_member(target.id)
-
-            -- Add to target haste effects
-            haste_effect.potency = haste_effect.potency_base
-            add_haste_effect(target_member, haste_effect)
+            for i,a in ipairs(target.actions) do
+              local buff_id = a.param
+              -- Ensure spell was not resisted
+              if SLOW_DEBUFF_IDS:contains(buff_id)
+                  and not IMMUNITY_MESSAGE_IDS:contains(a.message)
+                  and not RESIST_MESSAGE_IDS:contains(a.message)
+                  and not NO_EFFECT_MESSAGE_IDS:contains(a.message) then
+                -- Add to target haste effects
+                haste_effect.potency = haste_effect.potency_base
+                add_haste_effect(target_member, haste_effect)
+                log('Received debuff: '..inspect(act, {depth=5}))
+              end
+            end
           end
         end
       end
@@ -479,11 +488,12 @@ function parse_action(act, type)
             add_haste_effect(target_member, haste_effect)
           elseif SLOW_DEBUFF_IDS:contains(buff_id)
               and not IMMUNITY_MESSAGE_IDS:contains(a.message)
-              and not RESIST_MESSAGEE_IDS:contains(a.message)
+              and not RESIST_MESSAGE_IDS:contains(a.message)
               and not NO_EFFECT_MESSAGE_IDS:contains(a.message) then
             -- Determine potency
             haste_effect.potency = haste_effect.potency_base
             add_haste_effect(target_member, haste_effect)
+            log('Received debuff: '..inspect(act, {depth=5}))
           end
         end
       end
@@ -710,6 +720,10 @@ function is_wearing_final_apoc()
   return weapon.id == FINAL_APOC_ID
 end
 
+-- Check to see if there's a tracked haste effect for this buff already
+-- If there is already a haste effect being tracked for this buff, assume
+-- they correspond to each other. If haste effect is not being tracked,
+-- make some smart guesses as to what it could be.
 function deduce_haste_effects(member, new_buffs)
   -- Make sure new_buffs is in the proper format
   local buffs = format_buffs(new_buffs)
@@ -842,17 +856,22 @@ function deduce_haste_effects(member, new_buffs)
         add_haste_effect(member, haste_effect)
       end
     elseif SLOW_DEBUFF_IDS:contains(buff.id) then
-      local haste_effect
-      if buff.id == WEAKNESS_DEBUFF_ID then -- Weakness
-        haste_effect = table.copy(haste_triggers['Other'][0])
-      elseif buff.id == SLOW_SPELL_DEBUFF_ID then -- Slow
-        haste_effect = table.copy(haste_triggers['Other'][3])
-      elseif buff.id == SLOW_SONG_DEBUFF_ID then -- Elegy
-        haste_effect = table.copy(haste_triggers['Other'][4])
-      elseif buff.id == SLOW_GEO_DEBUFF_ID then -- GEO Slow
-        haste_effect = table.copy(haste_triggers['Other'][5])
+      -- See if there is a corresponding haste effect on player already
+      local haste_effect = member.haste_effects[buff.id]
+      if not haste_effect then
+        if buff.id == WEAKNESS_DEBUFF_ID then -- Weakness
+          haste_effect = table.copy(haste_triggers['Other'][0])
+        elseif buff.id == SLOW_SPELL_DEBUFF_ID then -- Slow
+          haste_effect = table.copy(haste_triggers['Other'][3])
+        elseif buff.id == SLOW_SONG_DEBUFF_ID then -- Elegy
+          haste_effect = table.copy(haste_triggers['Other'][4])
+        elseif buff.id == SLOW_GEO_DEBUFF_ID then -- GEO Slow
+          haste_effect = table.copy(haste_triggers['Other'][5])
+        end
       end
-      add_haste_effect(member, haste_effect)
+      if haste_effect then
+        add_haste_effect(member, haste_effect)
+      end
     end
   end
 end
@@ -1644,7 +1663,9 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
         local me = get_member(player.id, player.name)
   
         -- Reconcile these buffs with tracked haste effects and actions; resolve discrepancies using assumed values
-        reconcile_buff_update(me, buffs)
+        -- Delayed to allow other functions to finish parsing, which helps avoid race conditions and
+        -- accidentally marking a buff/debuff as "unknown" with assumed potency.
+        reconcile_buff_update:schedule(0.1, me, buffs)
       end
     end
   elseif id == 0x037 then
