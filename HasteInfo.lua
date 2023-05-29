@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.3.3'
+_addon.version = '1.3.4'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -64,6 +64,7 @@ end
 -------------------------------------------------------------------------------
 
 function init()
+  files.create_path('data')
   files.create_path('logs')
 
   update_player_info()
@@ -1412,8 +1413,12 @@ end
 function load_settings(defaults, ui_defaults)
   if not player or not player.name then print('ERROR: Player not loaded yet. Cannot load settings.') end
 
-  local filepath = windower.addon_path..'data/'..player.name..'-settings.lua'
-	local f = io.open(filepath,'r')
+  local filepath = 'data/'..player.name..'-settings.lua'
+  local f = files.new(filepath,true)
+
+  if not files.exists(filepath) then
+    f:create()
+  end
 
   -- Pull metadata from defaults table
   local confdict_mt = getmetatable(defaults) or _meta.T
@@ -1422,7 +1427,7 @@ function load_settings(defaults, ui_defaults)
   end})
 
   -- Start with 
-  local stored_settings = T(assert(loadfile(filepath))())
+  local stored_settings = T(assert(loadfile(windower.addon_path..filepath))())
   if stored_settings then
     s = table.update(table.copy(s), stored_settings, true, 5)
   end
@@ -1447,10 +1452,14 @@ end
 function load_whitelist()
   if not player or not player.name then print('ERROR: Player not loaded yet. Cannot load whitelist.') end
 
-  local filepath = windower.addon_path..'data/'..player.name..'-whitelist.lua'
-	local f = io.open(filepath,'r')
+  local filepath = 'data/'..player.name..'-whitelist.lua'
+  local f = files.new(filepath,true)
 
-  local stored_whitelist = T(assert(loadfile(filepath))())
+  if not files.exists(filepath) then
+    f:create()
+  end
+
+  local stored_whitelist = T(assert(loadfile(windower.addon_path..filepath))())
   local w = stored_whitelist or T{}
 
 	return w
