@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.3.4'
+_addon.version = '1.3.5'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -454,7 +454,9 @@ function parse_action(act, type)
         haste_effect.caster_id = caster.id
         haste_effect.target_id = target_member.id
         haste_effect.multipliers = T{}
-        haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
+        if caster.id == target_member.id then -- Only apply bolster bonus if indi is on the GEO, not entrusted
+          haste_effect.multipliers[STR.BOLSTER] = bolster_multiplier
+        end
         add_indi_effect(haste_effect)
       else -- Assume Geo- spell
         haste_effect.caster_id = caster.id
