@@ -17,7 +17,7 @@ haste calculations that I'm attempting to solve with HasteInfo:
   you will sometimes find yourself in a position where GearInfo says "you need 16 Dual Wield" and GearSwap
   thinks changes into 16 DW set, which coincidentally adds 1 extra point of gear Haste too. Then GearInfo
   says, "Oh, GearSwap you can get by with only 11 DW now" and GearSwap changes back to a different set with
-  less DW only to realize that it coincidentally has gained 1% Haste back again.
+  less DW only to realize that it coincidentally has lost 1% Haste again. Then this repeats forever.
   - TL;DR: GearInfo should not tell GearSwap about haste from gear or it creates a feedback loop
 * Subpar potency detection
   - Potencies are often wrong. Even when manually setting BRD potency (override) to +8 on songs, double march is not being detected as capped magic haste.
