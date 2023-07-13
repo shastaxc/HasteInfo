@@ -28,7 +28,7 @@ haste calculations that I'm attempting to solve with HasteInfo:
   it just spams error messages, and cannot be fixed without a full addon reload.
 * Performance
   - GearInfo recalculates stats 2 times per second, or more if you have higher than 30 fps because its update loop is tied to the prerender loop
-  - HasteInfo recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand in case someone wants it outside of the normal reporting cycle.
+  - HasteInfo is event-driven which means it recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand in case someone wants it outside of the normal reporting cycle such as when first loading a new job or perhaps when switching from non-DW to DW weapons.
 
 ## How to Install
 
