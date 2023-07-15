@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.3.5'
+_addon.version = '1.4.0'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -369,7 +369,6 @@ function parse_action(act, type)
                 -- Add to target haste effects
                 haste_effect.potency = haste_effect.potency_base
                 add_haste_effect(target_member, haste_effect)
-                log('Received debuff: '..inspect(act, {depth=5}))
               end
             end
           end
@@ -496,7 +495,6 @@ function parse_action(act, type)
             -- Determine potency
             haste_effect.potency = haste_effect.potency_base
             add_haste_effect(target_member, haste_effect)
-            log('Received debuff: '..inspect(act, {depth=5}))
           end
         end
       end
@@ -811,7 +809,7 @@ function deduce_haste_effects(member, new_buffs)
             if not effect and not entrusted_member and
                 (geo_in_pt and geo_in_pt.buffs and geo_in_pt.buffs:contains(COLURE_ACTIVE_ID)) then
               effect = table.copy(haste_triggers['Magic'][771])
-              effect.potency = effect.potency_base * (effect.potency_per_geomancy * geo_in_pt.player_potencies.geomancy)
+              effect.potency = effect.potency_base + (effect.potency_per_geomancy * geo_in_pt.player_potencies.geomancy)
               effect.caster_id = geo_in_pt.id
               effect.target_id = geo_in_pt.id
               add_indi_effect(effect)
@@ -821,7 +819,7 @@ function deduce_haste_effects(member, new_buffs)
             if not effect and not entrusted_member and
                 (geo_in_pt and geo_in_pt.buffs and not geo_in_pt.buffs:contains(COLURE_ACTIVE_ID)) then
                   effect = table.copy(haste_triggers['Magic'][801])
-                  effect.potency = effect.potency_base * (effect.potency_per_geomancy * geo_in_pt.player_potencies.geomancy)
+                  effect.potency = effect.potency_base + (effect.potency_per_geomancy * geo_in_pt.player_potencies.geomancy)
                   effect.caster_id = geo_in_pt.id
               add_geo_effect(effect)
             end
@@ -1330,7 +1328,7 @@ function get_geomancy_effect(member)
       -- Find strongest Geomancy Haste buff currently active
       -- Find strongest buff in indi table
       local strongest_effect
-      local strongest_potency
+      local strongest_potency = 0
       for effect in indi_active:it() do
         local multiplier = total_multiplier(effect.multipliers, GEOMANCY_JA_MULTIPLIER_MAX)
         local potency = math.floor(effect.potency * multiplier)

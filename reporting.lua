@@ -33,6 +33,9 @@ function calculate_stats()
 
   -- Sum potency of all effects by category (ma, ja, debuff) in uncapped summation
   for effect in me.haste_effects:it() do
+    if effect.potency > 1024 then
+      log('Buff exceeds max potency '..inspect(effect, {depth=3}))
+    end
     -- Add potency to stats
     stats['haste'][effect.haste_category]['uncapped']['fraction'] = stats['haste'][effect.haste_category]['uncapped']['fraction'] + effect.potency
   end
@@ -40,6 +43,9 @@ function calculate_stats()
   -- Add Geomancy potency to ma category
   local geomancy_effect = get_geomancy_effect(me)
   if geomancy_effect then
+    if geomancy_effect.potency > 1024 then
+      log('GEO buff exceeds max potency '..inspect(geomancy_effect, {depth=3}))
+    end
     stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + geomancy_effect.potency
   end
 
@@ -48,12 +54,18 @@ function calculate_stats()
     -- Calculate final potency after multipliers
     local multiplier = total_multiplier(song.multipliers, SONG_JA_MULTIPLIER_MAX)
     local potency = math.floor(song.potency * multiplier)
+    if potency > 1024 then
+      log('BRD buff exceeds max potency '..inspect(song, {depth=3})..' | multiplier: '..multiplier..' | potency: '..potency)
+    end
     -- Add potency to stats
     stats['haste']['ma']['uncapped']['fraction'] = stats['haste']['ma']['uncapped']['fraction'] + potency
   end
 
   -- Add samba potency to ja category
   if not is_samba_expired(me) then
+    if me.samba.potency > 1024 then
+      log('DNC buff exceeds max potency '..inspect(me.samba, {depth=3}))
+    end
     -- Add potency to stats
     stats['haste']['ja']['uncapped']['fraction'] = stats['haste']['ja']['uncapped']['fraction'] + me.samba.potency
   end
