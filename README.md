@@ -17,7 +17,7 @@ haste calculations that I'm attempting to solve with HasteInfo:
   you will sometimes find yourself in a position where GearInfo says "you need 16 Dual Wield" and GearSwap
   thinks changes into 16 DW set, which coincidentally adds 1 extra point of gear Haste too. Then GearInfo
   says, "Oh, GearSwap you can get by with only 11 DW now" and GearSwap changes back to a different set with
-  less DW only to realize that it coincidentally has gained 1% Haste back again.
+  less DW only to realize that it coincidentally has lost 1% Haste again. Then this repeats forever.
   - TL;DR: GearInfo should not tell GearSwap about haste from gear or it creates a feedback loop
 * Subpar potency detection
   - Potencies are often wrong. Even when manually setting BRD potency (override) to +8 on songs, double march is not being detected as capped magic haste.
@@ -28,7 +28,7 @@ haste calculations that I'm attempting to solve with HasteInfo:
   it just spams error messages, and cannot be fixed without a full addon reload.
 * Performance
   - GearInfo recalculates stats 2 times per second, or more if you have higher than 30 fps because its update loop is tied to the prerender loop
-  - HasteInfo recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand in case someone wants it outside of the normal reporting cycle.
+  - HasteInfo is event-driven which means it recalculates only when a change to haste has been detected, and also only reports updates at that frequency too. It does accept commands to provide a report on demand in case someone wants it outside of the normal reporting cycle such as when first loading a new job or perhaps when switching from non-DW to DW weapons.
 
 ## How to Install
 
@@ -179,7 +179,7 @@ Sources of Haste accounted for:
 * When party members are out of zone, the game does not send us job updates for them. Their job will remain the same in the HasteInfo UI, but it may not be their actual job if they changed while out of zone. Players who are out of zone will show as slightly darker on the UI so just keep in mind that their job may not be accurate.
 
 ## TODO / Known Issues
-* Hasso counting toward haste when 2h not equipped.
+* [Bug] Hasso counting toward haste when 2h not equipped.
 * Add setting to allow user to override the assumed equipment haste value.
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
