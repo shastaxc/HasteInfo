@@ -1,6 +1,6 @@
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.4.0'
+_addon.version = '1.4.1'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -336,17 +336,12 @@ function parse_action(act, type)
     if not haste_triggers['Job Ability'][act.param] then return end
     local haste_effect = table.copy(haste_triggers['Job Ability'][act.param])
 
-    local me_target = table.with(act.targets, 'id', me.id)
-    if not me_target then return end
-    -- Check if it has any effect
-    if table.find(me_target.actions, function(a) return a.param ~= 0 end) then
-      -- Set potency
-      haste_effect.potency = haste_effect.potency_base
-      if haste_effect.potency_per_merit and haste_effect.merit_job == player.main then
-        haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_merit * player.merits[haste_effect.merit_name])
-      end
-      add_haste_effect(me, haste_effect)
+    -- Set potency
+    haste_effect.potency = haste_effect.potency_base
+    if haste_effect.potency_per_merit and haste_effect.merit_job == player.main_job then
+      haste_effect.potency = haste_effect.potency + (haste_effect.potency_per_merit * player.merits[haste_effect.merit_name])
     end
+    add_haste_effect(me, haste_effect)
   elseif type == ACTION_TYPE.BARD_SONG then
     if not haste_triggers['Magic'][act.param] then return end
     local haste_effect = table.copy(haste_triggers['Magic'][act.param])
@@ -570,6 +565,7 @@ function add_haste_effect(member, haste_effect)
     print('Missing potency on haste_effect: '..haste_effect.triggering_action)
     return
   end
+  if haste_effect.potency == 0 then return end
 
   -- Even if buff_id is already present, this could be a different action that provides the same buff_id but
   -- potentially different potency, so track this newer haste_effect instead.
@@ -1745,6 +1741,17 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     -- Packet says player has no geo bubble, let's stop tracking it
     if packet['Pet Index'] == 0 and player_id and geo_active[player_id] then
       remove_geo_effect(player_id)
+    end
+  elseif id == 0x067 or id == 0x068 then -- Pet Info & Pet Status
+    -- Only listening to these packets to tell when DRG pet is dead and remove Spirit Link/Empathy buff
+    if player.main_job == 'DRG' then
+      local packet = packets.parse('incoming', data)
+      local type = packet['Message Type']
+      local pethpp = packet['Current HP%']
+      if type == 4 and pethpp == 0 then
+        local me = get_member(player.id, player.name)
+        remove_haste_effect(me, 1000)
+      end
     end
   end
 end)

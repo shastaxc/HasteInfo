@@ -217,7 +217,7 @@ haste_triggers = T{
     [595] = {triggering_action='Hastega', triggering_id=595, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Job Ability', trigger_sub_category='BloodPactWard', persists_thru_zoning=true, potency_base=153},
     [602] = {triggering_action='Hastega II', triggering_id=602, buff_name='Haste', buff_id=33, haste_category='ma', trigger_category='Job Ability', trigger_sub_category='BloodPactWard', persists_thru_zoning=true, potency_base=307}, -- Exact potency unknown
     [173] = {triggering_action='Hasso', triggering_id=173, buff_name='Hasso', buff_id=353, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='', persists_thru_zoning=false, potency_base=103}, -- Exact potency unknown
-    [80] = {triggering_action='Spirit Link', triggering_id=80, buff_name='N/A', buff_id=0, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='', persists_thru_zoning=false, potency_base=0, potency_per_merit=21, merit_job='DRG', merit_name='empathy'}, -- Exact potency unknown
+    [80] = {triggering_action='Spirit Link', triggering_id=80, buff_name='N/A', buff_id=1000, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='', persists_thru_zoning=false, potency_base=0, potency_per_merit=21, merit_job='DRG', merit_name='empathy'}, -- Exact potency unknown; Using fake buff ID because it doesn't actually apply a buff
     [51] = {triggering_action='Last Resort', triggering_id=51, buff_name='Last Resort', buff_id=64, haste_category='ja', trigger_category='Job Ability', trigger_sub_category='', persists_thru_zoning=false, potency_base=150, potency_per_merit=21, merit_job='DRK', merit_name='desperate_blows'}, -- Exact potency unknown
   },
   ['Weapon Skill'] = {
