@@ -180,6 +180,7 @@ Sources of Haste accounted for:
 
 ## TODO / Known Issues
 * [Bug] Hasso counting toward haste when 2h not equipped.
+* Add setting to allow user to set Hasso value. This is to account for gear bonuses to Hasso.
 * Add setting to allow user to override the assumed equipment haste value.
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Figure out what dispel packets look like. They should say exactly what haste effect was removed (e.g. "___ loses the effect of Victory March" has to come from the packet). Maybe this sends a special "lost buff" packet, which tells the originating action of the buff (unlikely).
