@@ -26,7 +26,7 @@
 
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.4.1'
+_addon.version = '1.4.2'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1680,17 +1680,18 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
           buffs[i] = { id = status_i }
         end
       end
-      -- read times
-      for i = 1, 32 do
-        if buffs[i] then
-          local index = 0x49 + ((i-1) * 0x04)
-          local expiration = data:unpack('I', index)
-
-          buffs[i].expiration = from_server_time(expiration)
-        end
-      end
       
       if not is_dud then
+        -- read times
+        for i = 1, 32 do
+          if buffs[i] then
+            local index = 0x49 + ((i-1) * 0x04)
+            local expiration = data:unpack('I', index)
+  
+            buffs[i].expiration = from_server_time(expiration)
+          end
+        end
+        
         local me = get_member(player.id, player.name)
   
         -- Reconcile these buffs with tracked haste effects and actions; resolve discrepancies using assumed values
