@@ -900,7 +900,7 @@ function deduce_haste_effects(member, new_buffs)
 end
 
 function from_server_time(t)
-  return t / 60 + clock_offset
+  return t / 60 + start_of_era
 end
 
 function now()
@@ -1703,11 +1703,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
   elseif id == 0x037 then
     -- update clock offset
     -- credit: Akaden, Buffed addon
-    local p = packets.parse('incoming', data)
-    if p['Timestamp'] and p['Time offset?'] then
-      local vana_time = p['Timestamp'] * 60 - math.floor(p['Time offset?'])
-      clock_offset = math.floor(os.time() - vana_time % 0x100000000 / 60)
-    end
+    start_of_era = math.floor(os.time() - (((packet:unpack("I",0x41)*60 - packet:unpack("I",0x3D)) % 0x100000000) / 60))
   elseif id == 0x044 then
     -- Triggers once to tell sub job info, and again with main job info. Triggers on job change and zone change.
     -- Importantly, this packet includes BLU spell info, although it is not decoded by packets library.

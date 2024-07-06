@@ -7,8 +7,8 @@ alliance_update_0x0C8 = {} -- Only used to help read packets, resets often
 
 reports_paused = false
 
--- Offset of system clock vs server clock, to be determined by packets received from the server
-clock_offset = 0
+-- Time in Earth seconds from Unix epoch to the start of the current vana'diel era
+start_of_era = 0
 
 -- Whitelist is indexed by name when first set, but updated to index by ID when detected later
 -- Whitelist data structure:
