@@ -93,6 +93,12 @@ function init()
   files.create_path('data')
   files.create_path('logs')
 
+  -- Refresh vana'diel clock offset
+  local last_time_packet = windower.packets.last_incoming(0x037)
+  if last_time_packet then
+    update_clock(last_time_packet)
+  end
+
   update_player_info()
 
   settings, ui_settings = load_settings(default_settings, default_ui_settings)
@@ -1500,6 +1506,11 @@ function log(message)
   flog(filename, message)
 end
 
+function update_clock(packet)
+  -- credit: Akaden, Buffed addon
+  start_of_era = math.floor(os.time() - (((packet:unpack("I",0x41)*60 - packet:unpack("I",0x3D)) % 0x100000000) / 60))
+end
+
 -------------------------------------------------------------------------------
 -- Event hooks
 -------------------------------------------------------------------------------
@@ -1702,8 +1713,7 @@ windower.register_event('incoming chunk', function(id, data, modified, injected,
     end
   elseif id == 0x037 then
     -- update clock offset
-    -- credit: Akaden, Buffed addon
-    start_of_era = math.floor(os.time() - (((packet:unpack("I",0x41)*60 - packet:unpack("I",0x3D)) % 0x100000000) / 60))
+    update_clock(data)
   elseif id == 0x044 then
     -- Triggers once to tell sub job info, and again with main job info. Triggers on job change and zone change.
     -- Importantly, this packet includes BLU spell info, although it is not decoded by packets library.
