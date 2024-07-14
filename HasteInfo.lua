@@ -26,7 +26,7 @@
 
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.4.3'
+_addon.version = '1.4.4'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -1115,10 +1115,14 @@ function update_songs(member, buffs)
     -- Gained songs should already be sorted by shortest duration first
     -- These gained songs are ones that did not have a corresponding action packet detected
     -- so some assumptions have to be made about its potency. Check settings to determine what to do.
+    local found_song
     for song in gained_songs:it() do
+      if found_song then break end
       for assumed_song in song_priority:it() do
         -- If assumed song not already tracked, add it and include instance specific attributes
         if not member.songs[assumed_song.triggering_id] then
+          found_song = assumed_song
+          log('HasteInfo: Assuming unknown song is '..assumed_song.triggering_action)
           local haste_effect = assumed_song
           haste_effect.received_at = now()
           haste_effect.expiration = song.expiration
