@@ -26,7 +26,7 @@
 
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.4.4'
+_addon.version = '1.4.5'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
@@ -2155,7 +2155,6 @@ windower.register_event('addon command', function(cmd, ...)
       windower.add_to_chat(6, chat_l_blue..	'//hi show ' .. chat_white .. ': Show UI')
       windower.add_to_chat(6, chat_l_blue..	'//hi hide ' .. chat_white .. ': Hide UI')
       windower.add_to_chat(6, chat_l_blue..	'//hi resetpos ' .. chat_white .. ': Reset position of UI to default')
-      windower.add_to_chat(6, chat_l_blue..	'//hi party ' .. chat_white .. ': Toggle party details in UI')
       windower.add_to_chat(6, chat_l_blue..	'//hi detail ' .. chat_white .. ': Toggle UI between verbose/minimal mode')
 			windower.add_to_chat(6, chat_l_blue..	'    fraction ' .. chat_white .. ': Toggle haste values in fraction or percent')
 			windower.add_to_chat(6, chat_l_blue..	'    party ' .. chat_white .. ': Toggle display of party info')
