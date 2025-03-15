@@ -2173,9 +2173,9 @@ windower.register_event('addon command', function(cmd, ...)
       windower.add_to_chat(6, chat_l_blue..	'//hi debug ' .. chat_white .. ': Toggle debug mode')
       windower.add_to_chat(6, chat_l_blue..	'//hi help ' .. chat_white .. ': Display this help menu again')
     else
-      windower.send_command('hi help')
+      windower.send_command('hasteinfo help')
     end
   else
-    windower.send_command('hi help')
+    windower.send_command('hasteinfo help')
   end
 end)
