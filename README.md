@@ -272,3 +272,4 @@ Sources of Haste accounted for:
 * Add setting to allow user to override the assumed equipment haste value.
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
 * Add tracking for BST's raaz pet Zealous Snort ability.
+* When summary line is hidden in the UI, the first line of remaining UI elements is not aligned properly the left side of the UI box.
