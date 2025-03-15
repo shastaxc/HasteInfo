@@ -181,6 +181,7 @@ Sources of Haste accounted for:
 ## TODO / Known Issues
 * [Bug] Hasso counting toward haste when 2h not equipped.
 * [Bug] Desperate Blows buff is being counted even if wielding 1h weapon, which is not true.
+* [Bug] Due to dropped packets, Slow/Elegy debuffs can get stuck and never stop being tracked until you zone. Workaround is to reload HasteInfo.
 * Add setting to allow user to set Hasso value. This is to account for gear bonuses to Hasso.
 * Add setting to allow user to override the assumed equipment haste value.
 * Verify if trust Dancers give 5% or 10% haste with Haste Samba.
