@@ -1960,14 +1960,17 @@ windower.register_event('addon command', function(cmd, ...)
     elseif S{'visible', 'vis'}:contains(cmd) then
       settings.show_ui = not settings.show_ui
       toggle_ui()
+      save_settings()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'show' == cmd then
       settings.show_ui = true
       show_ui()
+      save_settings()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'hide' == cmd then
       settings.show_ui = false
       hide_ui()
+      save_settings()
       windower.add_to_chat(001, chat_d_blue..'HasteInfo: UI visibility set to '..chat_white..tostring(settings.show_ui)..chat_d_blue..'.')
     elseif 'resetpos' == cmd then
       settings.display.pos.x = 0

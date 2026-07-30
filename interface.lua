@@ -22,6 +22,8 @@ function toggle_ui()
 end
 
 function show_ui()
+  if not settings.show_ui then return end
+
   local is_vis = ui:visible()
   -- If we're changing it to be visible, we need to update the UI text first
   if not is_vis then
