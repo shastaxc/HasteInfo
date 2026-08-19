@@ -26,7 +26,7 @@
 
 _addon.name = 'HasteInfo'
 _addon.author = 'Shasta'
-_addon.version = '1.4.5'
+_addon.version = '1.4.6'
 _addon.commands = {'hi','hasteinfo'}
 
 -------------------------------------------------------------------------------
